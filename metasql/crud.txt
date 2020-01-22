@@ -1,0 +1,92 @@
+//Auto generated with MetaApi https://github.com/exyzzy/metaapi
+package {{ .Package }}
+
+{{ .Import }}
+
+{{ range $index, $table := .Tables }}
+//Create Table
+func CreateTable{{ $table.CapName }}(db *sql.DB) (err error) {
+	_, err = db.Exec{{ $table.DropTableStatement }}
+	if err != nil {
+		return
+	}
+	_, err = db.Exec{{ $table.CreateTableStatement }}
+	return
+}
+
+//Struct
+type {{ $table.CapSingName }} struct {
+{{ $table.StructFields }}
+}
+
+//Create
+func ({{ $table.SingName }} *{{ $table.CapSingName }}) Create{{ $table.CapSingName }}(db *sql.DB) (result {{ $table.CapSingName }}, err error) {
+	stmt, err := db.Prepare{{ $table.CreateStatement }}
+	if err != nil {
+		return
+	}
+	defer stmt.Close()
+	err = stmt.QueryRow{{ $table.CreateQuery }}
+	return
+}
+
+//Retrieve
+func ({{ $table.SingName }} *{{ $table.CapSingName }}) Retrieve{{ $table.CapSingName }}(db *sql.DB) (result {{ $table.CapSingName }}, err error) {
+	result = {{ $table.CapSingName }}{}
+	err = db.QueryRow{{ $table.RetrieveStatement }}
+	return
+}
+
+//RetrieveAll
+func ({{ $table.SingName }} *{{ $table.CapSingName }}) RetrieveAll{{ $table.CapName }}(db *sql.DB) ({{ $table.Name }} []{{ $table.CapSingName }}, err error) {
+	rows, err := db.Query{{ $table.RetrieveAllStatement }}
+	if err != nil {
+		return
+	}
+	for rows.Next() {
+		result := {{ $table.CapSingName }}{}
+		if err = rows{{ $table.ScanAll }}; err != nil {
+			return
+		}
+		{{ $table.Name }} = append({{ $table.Name }}, result)
+	}
+	rows.Close()
+	return
+}
+
+//Update
+func ({{ $table.SingName }} *{{ $table.CapSingName }}) Update{{ $table.CapSingName }}(db *sql.DB) (result {{ $table.CapSingName }}, err error) {
+	stmt, err := db.Prepare{{ $table.UpdateStatement }}
+	if err != nil {
+		return
+	}
+	defer stmt.Close()
+
+	err = stmt.QueryRow{{ $table.UpdateQuery }}
+	return
+}
+
+//Delete
+func ({{ $table.SingName }} *{{ $table.CapSingName }}) Delete{{ $table.CapSingName }}(db *sql.DB) (err error) {
+	stmt, err := db.Prepare{{ $table.DeleteStatement }}
+	if err != nil {
+		return
+	}
+	defer stmt.Close()
+
+	_, err = stmt.Exec{{ $table.DeleteQuery }}
+	return
+}
+
+//DeleteAll
+func DeleteAll{{ $table.CapSingName }}s(db *sql.DB) (err error) {
+	stmt, err := db.Prepare{{ $table.DeleteAllStatement}}
+	if err != nil {
+		return
+	}
+	defer stmt.Close()
+
+	_, err = stmt.Exec()
+	return
+}
+{{ end }}
