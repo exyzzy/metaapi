@@ -97,6 +97,8 @@ func initLexer() (*lex.Lexer, error) {
 	lexer.Add([]byte(`([a-z]|[A-Z]|_|#|@)([a-z]|[A-Z]|[0-9]|_|#|@|\$)*\(([a-z]|[A-Z]|_|#|@)([a-z]|[A-Z]|[0-9]|_|#|@|\$)*\)`), token("REFID"))
 	lexer.Add([]byte(`([a-z]|[A-Z]|_|#|@)([a-z]|[A-Z]|[0-9]|_|#|@|\$)*`), token("ID"))
 	lexer.Add([]byte("( |\t|\n|\r)+"), skip)
+	lexer.Add([]byte("--[^\n]*\n?"), skip)
+	lexer.Add([]byte(`/\*([^*]|\r|\n|(\*+([^*/]|\r|\n)))*\*+/`), skip)
 
 	err := lexer.Compile()
 	if err != nil {

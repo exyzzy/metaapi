@@ -2,7 +2,7 @@
 
 Metaprogramming example to generate go CRUD api from sql table definitions
 
-See original Medium article here. (tbd)
+See original Medium article here: https://medium.com/@exyzzy/metaprogram-in-go-5a2a7e989613
 
 To run:
 
@@ -31,39 +31,41 @@ CREATE [some_stuff]* TABLE [IF NOT EXISTS] table_name (
     column_name data_type [some_stuff]* 
     [, ...]
 ) [some_stuff]* ;
+
+Skip Whitespace and Comments
 ```
 
 ## Supported SQL Data Types and Conversion to Go
 ```
-SQL	        GO
------------|-------
-BOOLEAN	    bool
-BOOL	    bool
-CHAR(n)	    string
-VARCHAR(n)	string
-TEXT	    string
-SMALLINT	int16
-INT	        int32
-INTEGER	    int32
-BIGINT	    int64
-SMALLSERIAL	int16
-SERIAL	    int32
-BIGSERIAL	int64
-FLOAT(n)	float64
-REAL	    float32
-FLOAT8	    float32
-DECIMAL	    float64
-NUMERIC	    float64
+SQL	        		GO
+-------------------|-------
+BOOLEAN	    		bool
+BOOL	    		bool
+CHAR(n)	    		string
+VARCHAR(n)			string
+TEXT	    		string
+SMALLINT			int16
+INT	        		int32
+INTEGER	    		int32
+BIGINT	    		int64
+SMALLSERIAL			int16
+SERIAL	    		int32
+BIGSERIAL			int64
+FLOAT(n)			float64
+REAL	    		float32
+FLOAT8	    		float32
+DECIMAL	    		float64
+NUMERIC	    		float64
 NUMERIC(p,s)	    float64
 DOUBLE PRECISION	float64
-DATE	    time.Time
-TIME	    time.Time
-TIMESTAMPTZ	time.Time
-TIMESTAMP	time.Time
-INTERVAL	time.Time
-JSON	    []byte
-JSONB	    []byte
-UUID	    string
+DATE	    		time.Time
+TIME	    		time.Time
+TIMESTAMPTZ			time.Time
+TIMESTAMP			time.Time
+INTERVAL			time.Time
+JSON	    		[]byte
+JSONB	    		[]byte
+UUID	    		string
 ```
 
 ## State Machine
