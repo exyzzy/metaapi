@@ -8,23 +8,6 @@ import (
 	lex "github.com/timtadh/lexmachine"
 )
 
-type Column struct {
-	Name string
-	Type string
-}
-
-type Table struct {
-	Name    string
-	Query   string
-	Columns []Column
-}
-
-type StateMachine struct {
-	FName    string
-	CurState int
-	Tables   []Table
-}
-
 type NextAction struct {
 	State int
 	Fn    func(*StateMachine, *lex.Token)
@@ -53,7 +36,7 @@ func InitState(fname string) *StateMachine {
 
 func error_state(sm *StateMachine, token *lex.Token) {
 	//no state found
-	log.Fatal("Error in SQL Syntax!")
+	log.Panic("Error in SQL Syntax!")
 }
 
 func nop(sm *StateMachine, token *lex.Token) {
@@ -160,7 +143,6 @@ func ProcessState(sm *StateMachine, token *lex.Token) (err error) {
 	nextState := stateMap[mapStr]
 	//map zeros all fields of struct if not found
 	if nextState.State == 0 {
-		nextState = stateMap["Error"]
 		printQuery(sm)
 		err = errors.New("Syntax Error: " + Tokens[token.Type])
 		return

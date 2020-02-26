@@ -1,40 +1,98 @@
 package metasql
 
 import (
+	"encoding/json"
 	"errors"
+	"log"
+	"math/rand"
+	"reflect"
+	"time"
+
+	"fmt"
 	"io/ioutil"
 	"os"
 	"strconv"
 	"strings"
 	"text/template"
+
+	"github.com/exyzzy/metaapi/data"
 )
 
-//Generate assumes that the primary ID is in the first column (index 0)
-func Generate(sm *StateMachine, txtFile string) error {
-	if sm.FName == "" {
-		return (errors.New("No file name"))
-	}
-	dot := strings.Index(sm.FName, ".")
-	var prefix string
-	if dot > 0 {
-		prefix = sm.FName[:dot]
-	} else {
-		prefix = sm.FName
-	}
-	dat, err := ioutil.ReadFile("./" + txtFile)
-	if err != nil {
-		return err
-	}
+type Column struct {
+	Name string
+	Type string
+}
 
-	tt := template.Must(template.New(prefix).Parse(string(dat)))
-	dest := prefix + "_generated.go"
+type Table struct {
+	Name    string
+	Query   string
+	Columns []Column
+}
+
+type StateMachine struct {
+	FName    string
+	CurState int
+	Tables   []Table
+}
+
+func ReadSM() (sm *StateMachine, err error) {
+	bytes, err := ioutil.ReadAll(os.Stdin)
+	if err != nil {
+		return
+	}
+	err = json.Unmarshal(bytes, &sm)
+	return
+}
+
+//Generate assumes that the primary ID is in the first column (index 0)
+func Generate(dta interface{}, txtFile string) error {
+
+	var sm StateMachine
+	var prefix string
+	var suffix string
+	// fmt.Println("GENERATE: ", reflect.TypeOf(dta).Name())
+	if reflect.TypeOf(dta).Name() == "StateMachine" {
+		sm = dta.(StateMachine)
+
+		if sm.FName == "" {
+			return (errors.New("No file name"))
+		}
+		prefix = sm.FilePrefix()
+	}
+	if txtFile != "" {
+		dot := strings.Index(txtFile, ".")
+		if dot > 0 {
+			suffix = txtFile[:dot]
+		} else {
+			suffix = txtFile
+		}
+
+		dest := prefix + "_generated_" + suffix + ".go"
+
+		//for -pipe option, instead of data.Asset, use:
+		// dat, err := ioutil.ReadFile("./" + txtFile)
+		// if err != nil {
+		// 	return err
+		// }
+
+		dat, err := data.Asset(txtFile)
+		if err != nil {
+			return err
+		}
+		return generateFile(dat, &sm, dest)
+	}
+	return nil
+}
+
+func generateFile(templatesrc []byte, data interface{}, dest string) error {
+	tt := template.Must(template.New("file").Parse(string(templatesrc)))
 	file, err := os.Create(dest)
 	if err != nil {
 		return err
 	}
-	tt.Execute(file, sm)
+	err = tt.Execute(file, data)
 	file.Close()
-	return nil
+	return err
 }
 
 //======== string helpers
@@ -71,6 +129,17 @@ func comma(i int, length int) string {
 
 //======== template methods
 
+func (sm *StateMachine) FilePrefix() string {
+	dot := strings.Index(sm.FName, ".")
+	var prefix string
+	if dot > 0 {
+		prefix = sm.FName[:dot]
+	} else {
+		prefix = sm.FName
+	}
+	return prefix
+}
+
 func (sm *StateMachine) Package() string {
 	return os.Getenv("GOPACKAGE")
 }
@@ -92,6 +161,8 @@ func (sm *StateMachine) Import() string {
 		}
 	}
 	s += "import (\n\t\"database/sql\"\n"
+	s += "\t_ \"github.com/lib/pq\"\n"
+
 	if includeTime {
 		s += "\t\"time\"\n"
 	}
@@ -113,7 +184,7 @@ func (table Table) CapSingName() string {
 
 func (table Table) DropTableStatement() string {
 	var s string
-	s += "(\"DROP TABLE IF EXISTS " + table.Name + "\")"
+	s += "(\"DROP TABLE IF EXISTS " + table.Name + " CASCADE\")"
 	return s
 }
 
@@ -149,9 +220,9 @@ func (table Table) StructFields() string {
 		"TIME":        "time.Time",
 		"TIMESTAMPTZ": "time.Time",
 		"TIMESTAMP":   "time.Time",
-		"INTERVAL":    "time.Time",
-		"JSON":        "[]byte",
-		"JSONB":       "[]byte",
+		"INTERVAL":    "string",
+		"JSON":        "string",
+		"JSONB":       "string",
 		"UUID":        "string",
 	}
 	var s string
@@ -338,4 +409,152 @@ func (table Table) DeleteAllStatement() string {
 	var s string
 	s += "(\"DELETE FROM " + table.Name + "\")"
 	return s
+}
+
+//TEST SPECIFIC
+
+type GenerateFunc func(int, int) string
+
+type testFuncs struct {
+	GenerateData GenerateFunc
+	CompareData  string
+}
+
+var dataMap = map[string]testFuncs{
+	"BOOLEAN":     {boolTestData, "defaultCompare"},
+	"BOOL":        {boolTestData, "defaultCompare"},
+	"CHARID":      {stringTestData, "defaultCompare"}, //Needs custom compare to work for all cases
+	"VARCHARID":   {stringTestData, "defaultCompare"},
+	"TEXT":        {stringTestData, "defaultCompare"},
+	"SMALLINT":    {int16TestData, "defaultCompare"},
+	"INT":         {int32TestData, "defaultCompare"},
+	"INTEGER":     {int32TestData, "defaultCompare"},
+	"BIGINT":      {int32TestData, "defaultCompare"},
+	"SMALLSERIAL": {serialTestData, "defaultCompare"},
+	"SERIAL":      {serialTestData, "defaultCompare"},
+	"BIGSERIAL":   {serialTestData, "defaultCompare"},
+	"FLOATID":     {float64TestData, "defaultCompare"}, //Needs custom compare to work for all cases
+	"REAL":        {float32TestData, "defaultCompare"},
+	"FLOAT8":      {float32TestData, "defaultCompare"},
+	"DECIMAL":     {float64TestData, "defaultCompare"},
+	"NUMERIC":     {float64TestData, "defaultCompare"},
+	"NUMERICID":   {float64TestData, "defaultCompare"}, //Needs custom compare to work for all cases
+	"PRECISION":   {float64TestData, "defaultCompare"}, //DOUBLE PRECISION
+	"DATE":        {dateTestData, "stringCompare"},     //use string compare to get around pq date issue
+	"TIME":        {timeTestData, "stringCompare"},
+	"TIMESTAMPTZ": {timestampTestData, "stringCompare"},
+	"TIMESTAMP":   {timestampTestData, "stringCompare"},
+	"INTERVAL":    {durationTestData, "defaultCompare"},
+	"JSON":        {jsonTestData, "jsonCompare"}, //use jsonCompare since keys can be any order
+	"JSONB":       {jsonbTestData, "jsonCompare"},
+	"UUID":        {uuidTestData, "defaultCompare"},
+}
+
+func (table Table) CompareMapFields() string {
+	var s string
+
+	for _, column := range table.Columns {
+		s += "\t\"" + camelize(column.Name) + "\": "
+		s += dataMap[column.Type].CompareData + ",\n"
+	}
+	return s
+}
+
+func (table Table) TestData(dataid int) string {
+	rand.Seed(time.Now().UnixNano())
+
+	var s string
+
+	s = "{"
+	for columnid, column := range table.Columns {
+		s += " " + dataMap[column.Type].GenerateData(dataid, columnid)
+		s += comma(columnid, len(table.Columns))
+	}
+	s += "}"
+	return s
+}
+
+func boolTestData(dataid int, columnid int) string {
+	return (strconv.FormatBool(rand.Intn(2) != 0))
+}
+func stringTestData(dataid int, columnid int) string {
+	return ("\"" + randString(16) + "\"")
+}
+func int16TestData(dataid int, columnid int) string {
+	if columnid == 0 { //assume serial
+		return (strconv.FormatInt(int64(dataid), 10))
+	} else {
+		return (strconv.FormatInt(int64(rand.Intn(32767)), 10))
+	}
+}
+func int32TestData(dataid int, columnid int) string {
+	if columnid == 0 { //assume serial
+		return (strconv.FormatInt(int64(dataid), 10))
+	} else {
+		return (strconv.FormatInt(int64(rand.Int31()), 10))
+	}
+}
+func int64TestData(dataid int, columnid int) string {
+	if columnid == 0 { //assume serial
+		return (strconv.FormatInt(int64(dataid), 10))
+	} else {
+		return (strconv.FormatInt(rand.Int63(), 10))
+	}
+}
+func serialTestData(dataid int, columnid int) string {
+	return strconv.Itoa(dataid)
+}
+func float64TestData(dataid int, columnid int) string {
+	return (strconv.FormatFloat(rand.NormFloat64(), 'f', -1, 64))
+}
+func float32TestData(dataid int, columnid int) string {
+	return (strconv.FormatFloat(float64(rand.Float32()), 'f', -1, 32))
+}
+func timeTestData(dataid int, columnid int) string {
+	return "time.Date(0000, time.January, 1, time.Now().UTC().Hour(), time.Now().UTC().Minute(), time.Now().UTC().Second(), time.Now().UTC().Nanosecond(), time.UTC)"
+}
+func timestampTestData(dataid int, columnid int) string {
+	return "time.Now().UTC().Truncate(time.Microsecond)"
+}
+func durationTestData(dataid int, columnid int) string {
+	return "\"12:34:45\""
+}
+func dateTestData(dataid int, columnid int) string {
+	return "time.Now().UTC().Truncate(time.Hour * 24)"
+}
+func jsonTestData(dataid int, columnid int) string {
+	return randJson()
+}
+func jsonbTestData(dataid int, columnid int) string {
+	return randJson()
+}
+func uuidTestData(dataid int, columnid int) string {
+	return "\"" + randUUID() + "\""
+}
+
+func randString(length int) string {
+	const charset = "abcdefghijklmnopqrstuvwxyz" +
+		"ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+
+	b := make([]byte, length)
+	for i := range b {
+		b[i] = charset[rand.Intn(len(charset))]
+	}
+	return string(b)
+}
+
+func randJson() string {
+	return "\"{\\\"name\\\": \\\"" + randString(16) + "\\\", \\\"age\\\": " + strconv.FormatInt(int64(rand.Int31()), 10) + ", \\\"city\\\": \\\"" + randString(20) + "\\\"}\""
+}
+
+func randUUID() (uuid string) {
+	u := new([16]byte)
+	_, err := rand.Read(u[:])
+	if err != nil {
+		log.Panicln("Cannot generate UUID", err.Error())
+	}
+	u[8] = (u[8] | 0x40) & 0x7F
+	u[6] = (u[6] & 0xF) | (0x4 << 4)
+	uuid = fmt.Sprintf("%x-%x-%x-%x-%x", u[0:4], u[4:6], u[6:8], u[8:10], u[10:])
+	return
 }
