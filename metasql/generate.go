@@ -85,7 +85,7 @@ func Generate(dta interface{}, txtFile string) error {
 }
 
 func generateFile(templatesrc []byte, data interface{}, dest string) error {
-	tt := template.Must(template.New("file").Parse(string(templatesrc)))
+	tt := template.Must(template.New("file").Delims("<<", ">>").Parse(string(templatesrc)))
 	file, err := os.Create(dest)
 	if err != nil {
 		return err

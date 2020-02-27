@@ -1,5 +1,5 @@
 //Auto generated with MetaApi https://github.com/exyzzy/metaapi
-package {{ .Package }}
+package << .Package >>
 
 import (
 	"database/sql"
@@ -15,7 +15,7 @@ import (
 
 var testDb *sql.DB
 var configdb map[string]interface{}
-const testDbName = "test{{ .FilePrefix }}"
+const testDbName = "test<< .FilePrefix >>"
 
 // ======= helpers
 
@@ -186,100 +186,100 @@ func equalField(result, expect interface{}, compMap map[string]compareType) erro
 
 //table specific 
 
-{{ range $index, $table := .Tables }}
-const {{ $table.Name }}tableName = "{{ $table.Name }}"
+<< range $index, $table := .Tables >>
+const << $table.Name >>tableName = "<< $table.Name >>"
 
 //test data - note: double brackets in test data need space between otherwise are interpreted as template action
-var test{{ $table.CapSingName }} = [2]{{ $table.CapSingName }}{ {{ $table.TestData 1 }}, {{ $table.TestData 2 }} }
+var test<< $table.CapSingName >> = [2]<< $table.CapSingName >>{ << $table.TestData 1 >>, << $table.TestData 2 >> }
 
-var update{{ $table.CapSingName }} = {{ $table.CapSingName }}{{ $table.TestData 1 }}
+var update<< $table.CapSingName >> = << $table.CapSingName >><< $table.TestData 1 >>
 
 //compare functions
-var compare{{ $table.CapName }} = map[string]compareType{
-{{ $table.CompareMapFields }}
+var compare<< $table.CapName >> = map[string]compareType{
+<< $table.CompareMapFields >>
 }
 
-// ======= tests: {{ $table.CapSingName }}
+// ======= tests: << $table.CapSingName >>
 
-func reverse{{ $table.CapName }}({{ $table.Name }} []{{ $table.CapSingName }}) (result []{{ $table.CapSingName }}) {
+func reverse<< $table.CapName >>(<< $table.Name >> []<< $table.CapSingName >>) (result []<< $table.CapSingName >>) {
 
-	for i := len({{ $table.Name }}) - 1; i >= 0; i-- {
-		result = append(result, {{ $table.Name }}[i])
+	for i := len(<< $table.Name >>) - 1; i >= 0; i-- {
+		result = append(result, << $table.Name >>[i])
 	}
 	return
 }
 
-func TestCreateTable{{ $table.CapName }}(t *testing.T) {
-	fmt.Println("==CreateTable{{ $table.CapName }}")
+func TestCreateTable<< $table.CapName >>(t *testing.T) {
+	fmt.Println("==CreateTable<< $table.CapName >>")
 
-	err := CreateTable{{ $table.CapName }}(testDb)
+	err := CreateTable<< $table.CapName >>(testDb)
 	if err != nil {
-		t.Errorf("cannot CreateTable{{ $table.CapName }} " + err.Error())
+		t.Errorf("cannot CreateTable<< $table.CapName >> " + err.Error())
 	} else {
-		fmt.Println("  Done: CreateTable{{ $table.CapName }}")
+		fmt.Println("  Done: CreateTable<< $table.CapName >>")
 	}
-	exists, err := tableExists(testDb, {{ $table.Name }}tableName)
+	exists, err := tableExists(testDb, << $table.Name >>tableName)
 	if err != nil {
 		t.Errorf("cannot tableExists " + err.Error())
 	}
 	if !exists {
-		t.Errorf("tableExists({{ $table.Name }}) returned wrong status code: got %v want %v", exists, true)
+		t.Errorf("tableExists(<< $table.Name >>) returned wrong status code: got %v want %v", exists, true)
 	} else {
 		fmt.Println("  Done: tableExists")
 	}
 }
 
-func TestCreate{{ $table.CapSingName }}(t *testing.T) {
-	fmt.Println("==Create{{ $table.CapSingName }}")
+func TestCreate<< $table.CapSingName >>(t *testing.T) {
+	fmt.Println("==Create<< $table.CapSingName >>")
 
-	result, err := test{{ $table.CapSingName }}[0].Create{{ $table.CapSingName }}(testDb)
+	result, err := test<< $table.CapSingName >>[0].Create<< $table.CapSingName >>(testDb)
 	if err != nil {
-		t.Errorf("cannot Create{{ $table.CapSingName }} " + err.Error())
+		t.Errorf("cannot Create<< $table.CapSingName >> " + err.Error())
 	} else {
-		fmt.Println("  Done: Create{{ $table.CapSingName }}")
+		fmt.Println("  Done: Create<< $table.CapSingName >>")
 	}
 
-	err = equalField(result, test{{ $table.CapSingName }}[0], compare{{ $table.CapName }})
+	err = equalField(result, test<< $table.CapSingName >>[0], compare<< $table.CapName >>)
 	if err != nil {
 		t.Errorf("api returned unexpected result. " + err.Error())
 	}
 }
 
-func TestRetrieve{{ $table.CapSingName }}(t *testing.T) {
-	fmt.Println("==Retrieve{{ $table.CapSingName }}")
+func TestRetrieve<< $table.CapSingName >>(t *testing.T) {
+	fmt.Println("==Retrieve<< $table.CapSingName >>")
 
-	result, err := test{{ $table.CapSingName }}[0].Retrieve{{ $table.CapSingName }}(testDb)
+	result, err := test<< $table.CapSingName >>[0].Retrieve<< $table.CapSingName >>(testDb)
 	if err != nil {
-		t.Errorf("cannot Retrieve{{ $table.CapSingName }} " + err.Error())
+		t.Errorf("cannot Retrieve<< $table.CapSingName >> " + err.Error())
 	} else {
-		fmt.Println("  Done: Retrieve{{ $table.CapSingName }}")
+		fmt.Println("  Done: Retrieve<< $table.CapSingName >>")
 	}
-	err = equalField(result, test{{ $table.CapSingName }}[0], compare{{ $table.CapName }})
+	err = equalField(result, test<< $table.CapSingName >>[0], compare<< $table.CapName >>)
 	if err != nil {
 		t.Errorf("api returned unexpected result. " + err.Error())
 	}
 }
 
-func TestRetrieveAll{{ $table.CapName }}(t *testing.T) {
-	fmt.Println("==RetrieveAll{{ $table.CapName }}")
+func TestRetrieveAll<< $table.CapName >>(t *testing.T) {
+	fmt.Println("==RetrieveAll<< $table.CapName >>")
 
-	_, err := test{{ $table.CapSingName }}[1].Create{{ $table.CapSingName }}(testDb)
+	_, err := test<< $table.CapSingName >>[1].Create<< $table.CapSingName >>(testDb)
 	if err != nil {
-		t.Errorf("cannot Create{{ $table.CapSingName }} " + err.Error())
+		t.Errorf("cannot Create<< $table.CapSingName >> " + err.Error())
 	} else {
-		fmt.Println("  Done: Create{{ $table.CapSingName }}")
+		fmt.Println("  Done: Create<< $table.CapSingName >>")
 	}
-	result, err := RetrieveAll{{ $table.CapName }}(testDb)
+	result, err := RetrieveAll<< $table.CapName >>(testDb)
 	if err != nil {
-		t.Errorf("cannot RetrieveAll{{ $table.CapName }} " + err.Error())
+		t.Errorf("cannot RetrieveAll<< $table.CapName >> " + err.Error())
 	} else {
-		fmt.Println("  Done: RetrieveAll{{ $table.CapName }}")
+		fmt.Println("  Done: RetrieveAll<< $table.CapName >>")
 	}
 
 	//reverse because api is DESC, [:] is slice of all array elements
-	expect := reverse{{ $table.CapName }}(test{{ $table.CapSingName }}[:])
+	expect := reverse<< $table.CapName >>(test<< $table.CapSingName >>[:])
 	for i, _ := range expect {
-		err = equalField(result[i], expect[i], compare{{ $table.CapName }})
+		err = equalField(result[i], expect[i], compare<< $table.CapName >>)
 		if err != nil {
 			t.Errorf("api returned unexpected result. " + err.Error())
 		}
@@ -289,60 +289,60 @@ func TestRetrieveAll{{ $table.CapName }}(t *testing.T) {
 }
 
 
-func TestUpdate{{ $table.CapSingName }}(t *testing.T) {
-	fmt.Println("==Update{{ $table.CapSingName }}")
+func TestUpdate<< $table.CapSingName >>(t *testing.T) {
+	fmt.Println("==Update<< $table.CapSingName >>")
 
-	result, err := update{{ $table.CapSingName }}.Update{{ $table.CapSingName }}(testDb)
+	result, err := update<< $table.CapSingName >>.Update<< $table.CapSingName >>(testDb)
 	if err != nil {
-		t.Errorf("cannot Update{{ $table.CapSingName }} " + err.Error())
+		t.Errorf("cannot Update<< $table.CapSingName >> " + err.Error())
 	} else {
-		fmt.Println("  Done: Update{{ $table.CapSingName }}")
+		fmt.Println("  Done: Update<< $table.CapSingName >>")
 	}
-	err = equalField(result, update{{ $table.CapSingName }}, compare{{ $table.CapName }})
+	err = equalField(result, update<< $table.CapSingName >>, compare<< $table.CapName >>)
 	if err != nil {
 		t.Errorf("api returned unexpected result. " + err.Error())
 	}
 }
 
-func TestDelete{{ $table.CapSingName }}(t *testing.T) {
-	fmt.Println("==Delete{{ $table.CapSingName }}")
+func TestDelete<< $table.CapSingName >>(t *testing.T) {
+	fmt.Println("==Delete<< $table.CapSingName >>")
 
-	err := test{{ $table.CapSingName }}[0].Delete{{ $table.CapSingName }}(testDb)
+	err := test<< $table.CapSingName >>[0].Delete<< $table.CapSingName >>(testDb)
 	if err != nil {
-		t.Errorf("cannot Delete{{ $table.CapSingName }} " + err.Error())
+		t.Errorf("cannot Delete<< $table.CapSingName >> " + err.Error())
 	} else {
-		fmt.Println("  Done: Delete{{ $table.CapSingName }}")
+		fmt.Println("  Done: Delete<< $table.CapSingName >>")
 	}
-	_, err = test{{ $table.CapSingName }}[0].Retrieve{{ $table.CapSingName }}(testDb)
+	_, err = test<< $table.CapSingName >>[0].Retrieve<< $table.CapSingName >>(testDb)
 	if err == nil {
 		t.Errorf("api returned unexpected result: got Row want NoRow")
 	} else {
 		if err == sql.ErrNoRows {
-			fmt.Println("  Done: Retrieve{{ $table.CapSingName }} with no result")
+			fmt.Println("  Done: Retrieve<< $table.CapSingName >> with no result")
 		} else {
-			t.Errorf("cannot Retrieve{{ $table.CapSingName }} " + err.Error())
+			t.Errorf("cannot Retrieve<< $table.CapSingName >> " + err.Error())
 		}
 	}
 }
 
-func TestDeleteAll{{ $table.CapName }}(t *testing.T) {
-	fmt.Println("==DeleteAll{{ $table.CapName }}")
+func TestDeleteAll<< $table.CapName >>(t *testing.T) {
+	fmt.Println("==DeleteAll<< $table.CapName >>")
 
-	err := DeleteAll{{ $table.CapName }}(testDb)
+	err := DeleteAll<< $table.CapName >>(testDb)
 	if err != nil {
-		t.Errorf("cannot DeleteAll{{ $table.CapName }} " + err.Error())
+		t.Errorf("cannot DeleteAll<< $table.CapName >> " + err.Error())
 	} else {
-		fmt.Println("  Done: DeleteAll{{ $table.CapName }}")
+		fmt.Println("  Done: DeleteAll<< $table.CapName >>")
 	}
-	result, err := RetrieveAll{{ $table.CapName }}(testDb)
+	result, err := RetrieveAll<< $table.CapName >>(testDb)
 
 	if err != nil {
-		t.Errorf("cannot RetrieveAll{{ $table.CapName }} " + err.Error())
+		t.Errorf("cannot RetrieveAll<< $table.CapName >> " + err.Error())
 	}
 	if len(result) > 0 {
 		t.Errorf("api returned unexpected result: got Row want NoRow")
 	} else {
-		fmt.Println("  Done: RetrieveAll{{ $table.CapName }} with no result")
+		fmt.Println("  Done: RetrieveAll<< $table.CapName >> with no result")
 	}
 }
-{{ end }}
+<< end >>
