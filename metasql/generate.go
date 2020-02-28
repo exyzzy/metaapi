@@ -72,7 +72,7 @@ func Generate(dta interface{}, txtFile string) error {
 		//for -pipe option, instead of data.Asset, use:
 		// dat, err := ioutil.ReadFile("./" + txtFile)
 		// if err != nil {
-		// 	return err
+		//  return err
 		// }
 
 		dat, err := data.Asset(txtFile)
