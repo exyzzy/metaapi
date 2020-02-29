@@ -511,7 +511,7 @@ func float32TestData(dataid int, columnid int) string {
 	return (strconv.FormatFloat(float64(rand.Float32()), 'f', -1, 32))
 }
 func timeTestData(dataid int, columnid int) string {
-	return "time.Date(0000, time.January, 1, time.Now().UTC().Hour(), time.Now().UTC().Minute(), time.Now().UTC().Second(), time.Now().UTC().Nanosecond(), time.UTC)"
+	return "time.Date(0000, time.January, 1, time.Now().UTC().Hour(), time.Now().UTC().Minute(), time.Now().UTC().Second(), time.Now().UTC().Nanosecond(), time.UTC).Truncate(time.Microsecond)"
 }
 func timestampTestData(dataid int, columnid int) string {
 	return "time.Now().UTC().Truncate(time.Microsecond)"
