@@ -7,7 +7,7 @@ Pull the v1.0 tag metaapi commit to have code that matches the original Medium a
 
 
 Current v2.0 code matches this article:
-* (tbd, in progress)
+* Automatic Testing in Go (in progress)
 
 See also:
 * http://github.com/exyzzy/metaproj
@@ -148,7 +148,7 @@ SQL	           GO
  8    UUID           9     data_type     
  9    ,              7     nop     
  9    )              11    nop     
- 9    REFID          9     some_stuff     
+ 9    REFID          9     some_ref     
  9    NOT            9     some_stuff     
  9    ID             9     some_stuff     
  11   ;              1     end_table     

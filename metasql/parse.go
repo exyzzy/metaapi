@@ -66,6 +66,11 @@ func data_type(sm *StateMachine, token *lex.Token) {
 	column.Type = Tokens[token.Type]
 }
 
+func some_ref(sm *StateMachine, token *lex.Token) {
+	column := getColumn(sm)
+	column.Ref = true
+}
+
 func some_stuff(sm *StateMachine, token *lex.Token) {
 	//nop
 }
@@ -132,7 +137,7 @@ func ProcessState(sm *StateMachine, token *lex.Token) (err error) {
 		"8,UUID":        {9, data_type},
 		"9,,":           {7, nop},
 		"9,)":           {11, nop},
-		"9,REFID":       {9, some_stuff},
+		"9,REFID":       {9, some_ref},
 		"9,NOT":         {9, some_stuff},
 		"9,ID":          {9, some_stuff},
 		"11,;":          {1, end_table},

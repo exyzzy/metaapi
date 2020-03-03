@@ -21,6 +21,7 @@ import (
 type Column struct {
 	Name string
 	Type string
+	Ref  bool //if true is foreign key
 }
 
 type Table struct {
@@ -72,7 +73,7 @@ func Generate(dta interface{}, txtFile string) error {
 		//for -pipe option, instead of data.Asset, use:
 		// dat, err := ioutil.ReadFile("./" + txtFile)
 		// if err != nil {
-		//  return err
+		// 	return err
 		// }
 
 		dat, err := data.Asset(txtFile)
@@ -128,6 +129,13 @@ func comma(i int, length int) string {
 }
 
 //======== template methods
+
+func (sm *StateMachine) ReverseTables() (result []Table) {
+	for i := len(sm.Tables) - 1; i >= 0; i-- {
+		result = append(result, sm.Tables[i])
+	}
+	return
+}
 
 func (sm *StateMachine) FilePrefix() string {
 	dot := strings.Index(sm.FName, ".")
@@ -413,7 +421,7 @@ func (table Table) DeleteAllStatement() string {
 
 //TEST SPECIFIC
 
-type GenerateFunc func(int, int) string
+type GenerateFunc func(int, int, Column) string
 
 type testFuncs struct {
 	GenerateData GenerateFunc
@@ -467,68 +475,68 @@ func (table Table) TestData(dataid int) string {
 
 	s = "{"
 	for columnid, column := range table.Columns {
-		s += " " + dataMap[column.Type].GenerateData(dataid, columnid)
+		s += " " + dataMap[column.Type].GenerateData(dataid, columnid, column)
 		s += comma(columnid, len(table.Columns))
 	}
 	s += "}"
 	return s
 }
 
-func boolTestData(dataid int, columnid int) string {
+func boolTestData(dataid int, columnid int, column Column) string {
 	return (strconv.FormatBool(rand.Intn(2) != 0))
 }
-func stringTestData(dataid int, columnid int) string {
+func stringTestData(dataid int, columnid int, column Column) string {
 	return ("\"" + randString(16) + "\"")
 }
-func int16TestData(dataid int, columnid int) string {
-	if columnid == 0 { //assume serial
+func int16TestData(dataid int, columnid int, column Column) string {
+	if columnid == 0 || column.Ref { //assume serial
 		return (strconv.FormatInt(int64(dataid), 10))
 	} else {
 		return (strconv.FormatInt(int64(rand.Intn(32767)), 10))
 	}
 }
-func int32TestData(dataid int, columnid int) string {
-	if columnid == 0 { //assume serial
+func int32TestData(dataid int, columnid int, column Column) string {
+	if columnid == 0 || column.Ref { //assume serial
 		return (strconv.FormatInt(int64(dataid), 10))
 	} else {
 		return (strconv.FormatInt(int64(rand.Int31()), 10))
 	}
 }
-func int64TestData(dataid int, columnid int) string {
-	if columnid == 0 { //assume serial
+func int64TestData(dataid int, columnid int, column Column) string {
+	if columnid == 0 || column.Ref { //assume serial
 		return (strconv.FormatInt(int64(dataid), 10))
 	} else {
 		return (strconv.FormatInt(rand.Int63(), 10))
 	}
 }
-func serialTestData(dataid int, columnid int) string {
+func serialTestData(dataid int, columnid int, column Column) string {
 	return strconv.Itoa(dataid)
 }
-func float64TestData(dataid int, columnid int) string {
+func float64TestData(dataid int, columnid int, column Column) string {
 	return (strconv.FormatFloat(rand.NormFloat64(), 'f', -1, 64))
 }
-func float32TestData(dataid int, columnid int) string {
+func float32TestData(dataid int, columnid int, column Column) string {
 	return (strconv.FormatFloat(float64(rand.Float32()), 'f', -1, 32))
 }
-func timeTestData(dataid int, columnid int) string {
+func timeTestData(dataid int, columnid int, column Column) string {
 	return "time.Date(0000, time.January, 1, time.Now().UTC().Hour(), time.Now().UTC().Minute(), time.Now().UTC().Second(), time.Now().UTC().Nanosecond(), time.UTC).Truncate(time.Microsecond)"
 }
-func timestampTestData(dataid int, columnid int) string {
+func timestampTestData(dataid int, columnid int, column Column) string {
 	return "time.Now().UTC().Truncate(time.Microsecond)"
 }
-func durationTestData(dataid int, columnid int) string {
+func durationTestData(dataid int, columnid int, column Column) string {
 	return "\"12:34:45\""
 }
-func dateTestData(dataid int, columnid int) string {
+func dateTestData(dataid int, columnid int, column Column) string {
 	return "time.Now().UTC().Truncate(time.Hour * 24)"
 }
-func jsonTestData(dataid int, columnid int) string {
+func jsonTestData(dataid int, columnid int, column Column) string {
 	return randJson()
 }
-func jsonbTestData(dataid int, columnid int) string {
+func jsonbTestData(dataid int, columnid int, column Column) string {
 	return randJson()
 }
-func uuidTestData(dataid int, columnid int) string {
+func uuidTestData(dataid int, columnid int, column Column) string {
 	return "\"" + randUUID() + "\""
 }
 

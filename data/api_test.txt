@@ -180,7 +180,7 @@ func equalField(result, expect interface{}, compMap map[string]compareType) erro
 
 //table specific 
 
-<< range $index, $table := .Tables >>
+<< range $table := .Tables >>
 const << $table.Name >>tableName = "<< $table.Name >>"
 
 //test data - note: double brackets in test data need space between otherwise are interpreted as template action
@@ -193,8 +193,6 @@ var compare<< $table.CapName >> = map[string]compareType{
 << $table.CompareMapFields >>
 }
 
-// ======= tests: << $table.CapSingName >>
-
 func reverse<< $table.CapName >>(<< $table.Name >> []<< $table.CapSingName >>) (result []<< $table.CapSingName >>) {
 
 	for i := len(<< $table.Name >>) - 1; i >= 0; i-- {
@@ -202,6 +200,8 @@ func reverse<< $table.CapName >>(<< $table.Name >> []<< $table.CapSingName >>) (
 	}
 	return
 }
+
+// ======= tests: << $table.CapSingName >> =======
 
 func TestCreateTable<< $table.CapName >>(t *testing.T) {
 	fmt.Println("==CreateTable<< $table.CapName >>")
@@ -297,6 +297,10 @@ func TestUpdate<< $table.CapSingName >>(t *testing.T) {
 		t.Errorf("api returned unexpected result. " + err.Error())
 	}
 }
+
+<< end >>
+//delete all data in reverse order to accommodate foreign keys
+<< range $table := .ReverseTables >>
 
 func TestDelete<< $table.CapSingName >>(t *testing.T) {
 	fmt.Println("==Delete<< $table.CapSingName >>")
