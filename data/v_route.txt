@@ -1,0 +1,153 @@
+package main
+
+import (
+	"database/sql"
+	"encoding/json"
+	"github.com/gorilla/mux"
+	"net/http"
+	"strconv"
+	"<< .DataPath >>"
+)
+
+//#SPLICE# func {[< template "func" . >]}
+//#SPLICE# end
+
+func AddAllMainRoutes(r *mux.Router) {
+	// defined in route_main.go
+	r.HandleFunc("/", HomeHandler).Methods("GET")
+	r.HandleFunc("/tables", TablesHandler).Methods("GET")
+
+<< range $index, $table := .Tables >>    
+	r.HandleFunc("/api/<< $table.SingName >>/createtable", << $table.CapSingName >>CreateTableHandler).Methods("DELETE")
+	r.HandleFunc("/api/<< $table.SingName >>", << $table.CapSingName >>PostHandler).Methods("POST")
+	r.HandleFunc("/api/<< $table.SingName >>/{id}", << $table.CapSingName >>GetHandler).Methods("GET")
+	r.HandleFunc("/api/<< $table.PlurName >>", << $table.CapPlurName >>GetHandler).Methods("GET")
+	r.HandleFunc("/api/<< $table.SingName >>/{id}", << $table.CapSingName >>PutHandler).Methods("PUT")
+	r.HandleFunc("/api/<< $table.SingName >>/{id}", << $table.CapSingName >>DeleteHandler).Methods("DELETE")
+	r.HandleFunc("/api/<< $table.PlurName >>", << $table.CapPlurName >>DeleteHandler).Methods("DELETE")
+<< end >>
+	//#SPLICE# addallmainroutes {[< template "addallmainroutes" . >]}
+	//#SPLICE# end
+
+	//root
+	r.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.FileServer(http.Dir("public"))))
+}
+
+<< range $index, $table := .Tables >>
+
+// ======= << $table.CapSingName >> =======
+
+// r.HandleFunc("/api/<< $table.SingName >>/createtable", << $table.CapSingName >>CreateTableHandler).Methods("DELETE")
+func << $table.CapSingName >>CreateTableHandler(writer http.ResponseWriter, request *http.Request) {
+	err := data.CreateTable<< $table.CapPlurName >>(data.Db)
+	if err != nil {
+		respondWithMessage(writer, http.StatusInternalServerError, err.Error())
+		return
+	}
+	respondWithJSON(writer, http.StatusOK, map[string]string{"result": "success"})
+}
+
+// r.HandleFunc("/api/<< $table.SingName >>", << $table.CapSingName >>PostHandler).Methods("POST")
+func << $table.CapSingName >>PostHandler(writer http.ResponseWriter, request *http.Request) {
+	var << $table.SingName >> data.<< $table.CapSingName >>
+	decoder := json.NewDecoder(request.Body)
+	if err := decoder.Decode(&<< $table.SingName >>); err != nil {
+		respondWithMessage(writer, http.StatusBadRequest, "Invalid request payload")
+		return
+	}
+	defer request.Body.Close()
+	// << $table.SingName >>.UpdatedAt = time.Now().UTC() //breaks tests
+	response, err := << $table.SingName >>.Create<< $table.CapSingName >>(data.Db)
+	if err != nil {
+		respondWithMessage(writer, http.StatusInternalServerError, err.Error())
+		return
+	}
+	respondWithJSON(writer, http.StatusOK, response)
+}
+
+// r.HandleFunc("/api/<< $table.SingName >>/{id}", << $table.CapSingName >>GetHandler).Methods("GET")
+func << $table.CapSingName >>GetHandler(writer http.ResponseWriter, request *http.Request) {
+	params := mux.Vars(request)
+	id, err := strconv.Atoi(params["id"])
+	if err != nil {
+		respondWithMessage(writer, http.StatusBadRequest, "Invalid << $table.SingName >> ID")
+		return
+	}
+	var << $table.SingName >> data.<< $table.CapSingName >>
+	<< $table.SingName >>.Id = int32(id)
+	response, err := << $table.SingName >>.Retrieve<< $table.CapSingName >>(data.Db)
+	if err != nil {
+		switch err {
+		case sql.ErrNoRows:
+			respondWithMessage(writer, http.StatusNotFound, "<< $table.CapSingName >> not found")
+		default:
+			respondWithMessage(writer, http.StatusInternalServerError, err.Error())
+		}
+		return
+	}
+	respondWithJSON(writer, http.StatusOK, response)
+}
+
+// r.HandleFunc("/api/<< $table.PlurName >>", << $table.CapPlurName >>GetHandler).Methods("GET")
+func << $table.CapPlurName >>GetHandler(writer http.ResponseWriter, request *http.Request) {
+	response, err := data.RetrieveAll<< $table.CapPlurName >>(data.Db)
+	if err != nil {
+		respondWithMessage(writer, http.StatusInternalServerError, err.Error())
+		return
+	}
+	respondWithJSON(writer, http.StatusOK, response)
+}
+
+// r.HandleFunc("/api/<< $table.SingName >>/{id}", << $table.CapSingName >>PutHandler).Methods("PUT")
+func << $table.CapSingName >>PutHandler(writer http.ResponseWriter, request *http.Request) {
+	params := mux.Vars(request)
+	id, err := strconv.Atoi(params["id"])
+	if err != nil {
+		respondWithMessage(writer, http.StatusBadRequest, "Invalid << $table.SingName >> ID")
+		return
+	}
+	var << $table.SingName >> data.<< $table.CapSingName >>
+	decoder := json.NewDecoder(request.Body)
+	if err := decoder.Decode(&<< $table.SingName >>); err != nil {
+		respondWithMessage(writer, http.StatusBadRequest, "Invalid request payload")
+		return
+	}
+	defer request.Body.Close()
+	<< $table.SingName >>.Id = int32(id)
+	// << $table.SingName >>.UpdatedAt = time.Now().UTC() //breaks tests
+	response, err := << $table.SingName >>.Update<< $table.CapSingName >>(data.Db)
+	if err != nil {
+		respondWithMessage(writer, http.StatusInternalServerError, err.Error())
+		return
+	}
+	respondWithJSON(writer, http.StatusOK, response)
+}
+
+// r.HandleFunc("/api/<< $table.SingName >>/{id}", << $table.CapSingName >>DeleteHandler).Methods("DELETE")
+func << $table.CapSingName >>DeleteHandler(writer http.ResponseWriter, request *http.Request) {
+	params := mux.Vars(request)
+	id, err := strconv.Atoi(params["id"])
+	if err != nil {
+		respondWithMessage(writer, http.StatusBadRequest, "Invalid << $table.SingName >> ID")
+		return
+	}
+	var << $table.SingName >> data.<< $table.CapSingName >>
+	<< $table.SingName >>.Id = int32(id)
+	err = << $table.SingName >>.Delete<< $table.CapSingName >>(data.Db)
+	if err != nil {
+		respondWithMessage(writer, http.StatusInternalServerError, err.Error())
+		return
+	}
+	respondWithJSON(writer, http.StatusOK, map[string]string{"result": "success"})
+}
+
+// r.HandleFunc("/api/<< $table.PlurName >>", << $table.CapPlurName >>DeleteHandler).Methods("DELETE")
+func << $table.CapPlurName >>DeleteHandler(writer http.ResponseWriter, request *http.Request) {
+	err := data.DeleteAll<< $table.CapPlurName >>(data.Db)
+	if err != nil {
+		respondWithMessage(writer, http.StatusInternalServerError, err.Error())
+		return
+	}
+	respondWithJSON(writer, http.StatusOK, map[string]string{"result": "success"})
+}
+<< end >>

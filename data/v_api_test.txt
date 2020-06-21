@@ -1,0 +1,187 @@
+//Auto generated with MetaApi https://github.com/exyzzy/metaapi
+package data
+
+import (
+	"database/sql"
+	"fmt"
+	"log"
+	"os"
+	"testing"
+)
+
+func TestMain(m *testing.M) {
+	//test setup
+	err := InitDb(&Db, "configlocaldb.json", &DbConfig, true)
+	if err != nil {
+		log.Panicln("cannot InitDb ", err.Error())
+	}
+	err = CreateDb(Db, DbConfig["TestName"].(string), DbConfig["User"].(string))
+	if err != nil {
+		log.Panicln("cannot CreateDb ", err.Error())
+	}
+	err = CloseDb(Db)
+	if err != nil {
+		log.Panicln("cannot CloseDb ", err.Error())
+	}
+	err = InitDb(&Db, "configlocaldb.json", &DbConfig, false)
+	if err != nil {
+		log.Panicln("cannot InitDb ", err.Error())
+	}
+	err = SetTzDb(Db)
+	if err != nil {
+		log.Panicln("cannot SetTzDb ", err.Error())
+	}
+	//run tests
+	exitVal := m.Run()
+	//test teardown
+	err = CloseDb(Db)
+	if err != nil {
+		log.Panicln("cannot CloseDb ", err.Error())
+	}
+	err = InitDb(&Db, "configlocaldb.json", &DbConfig, true)
+	if err != nil {
+		log.Panicln("cannot InitDb ", err.Error())
+	}
+	err = DropDb(Db, DbConfig["TestName"].(string))
+	if err != nil {
+		log.Panicln("cannot DropDb ", err.Error())
+	}
+	err = CloseDb(Db)
+	if err != nil {
+		log.Panicln("cannot CloseDb ", err.Error())
+	}
+	os.Exit(exitVal)
+}
+
+<< range $table := .Tables >>
+// ======= tests: << $table.CapSingName >> =======
+
+func TestCreateTable<< $table.CapPlurName >>(t *testing.T) {
+	fmt.Println("==CreateTable<< $table.CapPlurName >>")
+	err := CreateTable<< $table.CapPlurName >>(Db)
+	if err != nil {
+		t.Errorf("cannot CreateTable<< $table.CapPlurName >> " + err.Error())
+	} else {
+		fmt.Println("  Done: CreateTable<< $table.CapPlurName >>")
+	}
+	exists, err := TableExists(Db, "<< $table.Name >>")
+	if err != nil {
+		t.Errorf("cannot TableExists " + err.Error())
+	}
+	if !exists {
+		t.Errorf("TableExists(<< $table.Name >>) returned wrong status code: got %v want %v", exists, true)
+	} else {
+		fmt.Println("  Done: TableExists")
+	}
+}
+
+func TestCreate<< $table.CapSingName >>(t *testing.T) {
+	fmt.Println("==Create<< $table.CapSingName >>")
+	result, err := Test<< $table.CapSingName >>[0].Create<< $table.CapSingName >>(Db)
+	if err != nil {
+		t.Errorf("cannot Create<< $table.CapSingName >> " + err.Error())
+	} else {
+		fmt.Println("  Done: Create<< $table.CapSingName >>")
+	}
+	err = EqualField(result, Test<< $table.CapSingName >>[0], Compare<< $table.CapPlurName >>)
+	if err != nil {
+		t.Errorf("api returned unexpected result. " + err.Error())
+	}
+}
+
+func TestRetrieve<< $table.CapSingName >>(t *testing.T) {
+	fmt.Println("==Retrieve<< $table.CapSingName >>")
+	result, err := Test<< $table.CapSingName >>[0].Retrieve<< $table.CapSingName >>(Db)
+	if err != nil {
+		t.Errorf("cannot Retrieve<< $table.CapSingName >> " + err.Error())
+	} else {
+		fmt.Println("  Done: Retrieve<< $table.CapSingName >>")
+	}
+	err = EqualField(result, Test<< $table.CapSingName >>[0], Compare<< $table.CapPlurName >>)
+	if err != nil {
+		t.Errorf("api returned unexpected result. " + err.Error())
+	}
+}
+
+func TestRetrieveAll<< $table.CapPlurName >>(t *testing.T) {
+	fmt.Println("==RetrieveAll<< $table.CapPlurName >>")
+	_, err := Test<< $table.CapSingName >>[1].Create<< $table.CapSingName >>(Db)
+	if err != nil {
+		t.Errorf("cannot Create<< $table.CapSingName >> " + err.Error())
+	} else {
+		fmt.Println("  Done: Create<< $table.CapSingName >>")
+	}
+	result, err := RetrieveAll<< $table.CapPlurName >>(Db)
+	if err != nil {
+		t.Errorf("cannot RetrieveAll<< $table.CapPlurName >> " + err.Error())
+	} else {
+		fmt.Println("  Done: RetrieveAll<< $table.CapPlurName >>")
+	}
+	//reverse because api is DESC, [:] is slice of all array elements
+	expect := Reverse<< $table.CapPlurName >>(Test<< $table.CapSingName >>[:])
+	for i, _ := range expect {
+		err = EqualField(result[i], expect[i], Compare<< $table.CapPlurName >>)
+		if err != nil {
+			t.Errorf("api returned unexpected result. " + err.Error())
+		}
+	}
+}
+
+
+func TestUpdate<< $table.CapSingName >>(t *testing.T) {
+	fmt.Println("==Update<< $table.CapSingName >>")
+	result, err := Update<< $table.CapSingName >>.Update<< $table.CapSingName >>(Db)
+	if err != nil {
+		t.Errorf("cannot Update<< $table.CapSingName >> " + err.Error())
+	} else {
+		fmt.Println("  Done: Update<< $table.CapSingName >>")
+	}
+	err = EqualField(result, Update<< $table.CapSingName >>, Compare<< $table.CapPlurName >>)
+	if err != nil {
+		t.Errorf("api returned unexpected result. " + err.Error())
+	}
+}
+
+<< end >>
+//delete all data in reverse order to accommodate foreign keys
+<< range $table := .ReverseTables >>
+
+func TestDelete<< $table.CapSingName >>(t *testing.T) {
+	fmt.Println("==Delete<< $table.CapSingName >>")
+	err := Test<< $table.CapSingName >>[0].Delete<< $table.CapSingName >>(Db)
+	if err != nil {
+		t.Errorf("cannot Delete<< $table.CapSingName >> " + err.Error())
+	} else {
+		fmt.Println("  Done: Delete<< $table.CapSingName >>")
+	}
+	_, err = Test<< $table.CapSingName >>[0].Retrieve<< $table.CapSingName >>(Db)
+	if err == nil {
+		t.Errorf("api returned unexpected result: got Row want NoRow")
+	} else {
+		if err == sql.ErrNoRows {
+			fmt.Println("  Done: Retrieve<< $table.CapSingName >> with no result")
+		} else {
+			t.Errorf("cannot Retrieve<< $table.CapSingName >> " + err.Error())
+		}
+	}
+}
+
+func TestDeleteAll<< $table.CapPlurName >>(t *testing.T) {
+	fmt.Println("==DeleteAll<< $table.CapPlurName >>")
+	err := DeleteAll<< $table.CapPlurName >>(Db)
+	if err != nil {
+		t.Errorf("cannot DeleteAll<< $table.CapPlurName >> " + err.Error())
+	} else {
+		fmt.Println("  Done: DeleteAll<< $table.CapPlurName >>")
+	}
+	result, err := RetrieveAll<< $table.CapPlurName >>(Db)
+	if err != nil {
+		t.Errorf("cannot RetrieveAll<< $table.CapPlurName >> " + err.Error())
+	}
+	if len(result) > 0 {
+		t.Errorf("api returned unexpected result: got Row want NoRow")
+	} else {
+		fmt.Println("  Done: RetrieveAll<< $table.CapPlurName >> with no result")
+	}
+}
+<< end >>

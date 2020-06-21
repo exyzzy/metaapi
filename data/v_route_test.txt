@@ -1,0 +1,326 @@
+//https://elithrar.github.io/article/testing-http-handlers-go/
+//https://github.com/kelvins/GoApiTutorial
+//https://semaphoreci.com/community/tutorials/building-and-testing-a-rest-api-in-go-with-gorilla-mux-and-postgresql
+
+package main
+
+import (
+	"encoding/json"
+	"fmt"
+	"io/ioutil"
+	"log"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"strconv"
+	"strings"
+	"testing"
+
+	"github.com/gorilla/mux"
+	"<< .DataPath >>"
+)
+
+func TestMain(m *testing.M) {
+	//test setup
+	err := data.InitDb(&data.Db, "data/configlocaldb.json", &(data.DbConfig), true)
+	if err != nil {
+		log.Panicln("cannot InitDb ", err.Error())
+	}
+	err = data.CreateDb(data.Db, data.DbConfig["TestName"].(string), data.DbConfig["User"].(string))
+	if err != nil {
+		log.Panicln("cannot CreateDb ", err.Error())
+	}
+	err = data.CloseDb(data.Db)
+	if err != nil {
+		log.Panicln("cannot CloseDb ", err.Error())
+	}
+	err = data.InitDb(&data.Db, "data/configlocaldb.json", &(data.DbConfig), false)
+	if err != nil {
+		log.Panicln("cannot InitDb ", err.Error())
+	}
+	err = data.SetTzDb(data.Db)
+	if err != nil {
+		log.Panicln("cannot SetTzDb ", err.Error())
+	}
+	//run tests
+	exitVal := m.Run()
+	//test teardown
+	err = data.CloseDb(data.Db)
+	if err != nil {
+		log.Panicln("cannot CloseDb ", err.Error())
+	}
+	err = data.InitDb(&data.Db, "data/configlocaldb.json", &(data.DbConfig), true)
+	if err != nil {
+		log.Panicln("cannot InitDb ", err.Error())
+	}
+	err = data.DropDb(data.Db, data.DbConfig["TestName"].(string))
+	if err != nil {
+		log.Panicln("cannot DropDb ", err.Error())
+	}
+	err = data.CloseDb(data.Db)
+	if err != nil {
+		log.Panicln("cannot CloseDb ", err.Error())
+	}
+	os.Exit(exitVal)
+}
+
+//https://godoc.org/github.com/gorilla/mux#SetURLVars
+//must set URLVars with Gorilla
+
+<< range $index, $table := .Tables >>
+
+// ======= << $table.CapSingName >> =======
+
+func TestCreateTable<< $table.CapPlurName >>Handler(t *testing.T) {
+	fmt.Println("==TestCreateTableHander")
+	req, err := http.NewRequest("DELETE", "/api/<< $table.SingName >>/createtable", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rr := httptest.NewRecorder()
+	handler := http.HandlerFunc(<< $table.CapSingName >>CreateTableHandler)
+	handler.ServeHTTP(rr, req)
+	if status := rr.Code; status != http.StatusOK {
+		t.Errorf("handler returned wrong status code: got %v want %v",
+			status, http.StatusOK)
+	} else {
+		fmt.Println("  OK: DELETE on /api/<< $table.SingName >>/createtable")
+	}
+	exists, err := data.TableExists(data.Db, "<< $table.Name >>")
+	if err != nil {
+		t.Errorf("cannot TableExists " + err.Error())
+	}
+	if !exists {
+		t.Errorf("TableExists(<< $table.Name >>) returned wrong status code: got %v want %v", exists, true)
+	} else {
+		fmt.Println("  Done: TableExists")
+	}
+}
+
+func Test<< $table.CapSingName >>PostHandler(t *testing.T) {
+	fmt.Println("==Test<< $table.CapSingName >>PostHander")
+	js, err := json.Marshal(data.Test<< $table.CapSingName >>[0])
+	reader := strings.NewReader(string(js))
+	req, err := http.NewRequest("POST", "/api/<< $table.SingName >>", reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rr := httptest.NewRecorder()
+	handler := http.HandlerFunc(<< $table.CapSingName >>PostHandler)
+	handler.ServeHTTP(rr, req)
+	if status := rr.Code; status != http.StatusOK {
+		t.Errorf("handler returned wrong status code: got %v want %v",
+			status, http.StatusOK)
+	} else {
+		fmt.Println("  OK: POST on /api/<< $table.SingName >>")
+	}
+	body, err := ioutil.ReadAll(rr.Body)
+	if err != nil {
+		t.Errorf("cannot ioutil.ReadAll(request.Body): " + err.Error())
+	}
+	var response data.<< $table.CapSingName >>
+	err = json.Unmarshal([]byte(string(body)), &response)
+	if err != nil {
+		t.Errorf("cannot Unmarshall body: " + err.Error())
+	}
+	err = data.EqualField(response, data.Test<< $table.CapSingName >>[0], data.Compare<< $table.CapPlurName >>)
+	if err != nil {
+		t.Errorf("api returned unexpected result. " + err.Error())
+	}
+}
+
+func Test<< $table.CapSingName >>GetHandler(t *testing.T) {
+	fmt.Println("==Test<< $table.CapSingName >>GetHander")
+	req, err := http.NewRequest("GET", "/api/<< $table.SingName >>/", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	//note id is not parsed, must use mux.SetURLVars()
+	req = mux.SetURLVars(req, map[string]string{"id": strconv.Itoa(int(data.Test<< $table.CapSingName >>[0].Id))})
+	rr := httptest.NewRecorder()
+	handler := http.HandlerFunc(<< $table.CapSingName >>GetHandler)
+	handler.ServeHTTP(rr, req)
+	if status := rr.Code; status != http.StatusOK {
+		t.Errorf("handler returned wrong status code: got %v want %v",
+			status, http.StatusOK)
+	} else {
+		fmt.Println("  OK: GET on /api/<< $table.SingName >>")
+	}
+	body, err := ioutil.ReadAll(rr.Body)
+	if err != nil {
+		t.Errorf("cannot ioutil.ReadAll(request.Body): " + err.Error())
+	}
+	var response data.<< $table.CapSingName >>
+	err = json.Unmarshal([]byte(string(body)), &response)
+	if err != nil {
+		t.Errorf("cannot Unmarshall body: " + err.Error())
+	}
+	err = data.EqualField(response, data.Test<< $table.CapSingName >>[0], data.Compare<< $table.CapPlurName >>)
+	if err != nil {
+		t.Errorf("api returned unexpected result. " + err.Error())
+	}
+}
+
+func Test<< $table.CapPlurName >>GetHandler(t *testing.T) {
+	fmt.Println("==Test<< $table.CapPlurName >>GetHander")
+	//add another item
+	js, err := json.Marshal(data.Test<< $table.CapSingName >>[1])
+	reader := strings.NewReader(string(js))
+	req, err := http.NewRequest("POST", "/api/<< $table.SingName >>", reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rr := httptest.NewRecorder()
+	handler := http.HandlerFunc(<< $table.CapSingName >>PostHandler)
+	handler.ServeHTTP(rr, req)
+	if status := rr.Code; status != http.StatusOK {
+		t.Errorf("handler returned wrong status code: got %v want %v",
+			status, http.StatusOK)
+	}
+	req, err = http.NewRequest("GET", "/api/<< $table.PlurName >>/", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rr = httptest.NewRecorder()
+	handler = http.HandlerFunc(<< $table.CapPlurName >>GetHandler)
+	handler.ServeHTTP(rr, req)
+	if status := rr.Code; status != http.StatusOK {
+		t.Errorf("handler returned wrong status code: got %v want %v",
+			status, http.StatusOK)
+	} else {
+		fmt.Println("  OK: GET on /api/<< $table.PlurName >>")
+	}
+	body, err := ioutil.ReadAll(rr.Body)
+	if err != nil {
+		t.Errorf("cannot ioutil.ReadAll(request.Body): " + err.Error())
+	}
+	var response []data.<< $table.CapSingName >>
+	err = json.Unmarshal([]byte(string(body)), &response)
+	if err != nil {
+		t.Errorf("cannot Unmarshall body: " + err.Error())
+	}
+	//reverse because api is DESC, [:] is slice of all array elements
+	expect := data.Reverse<< $table.CapPlurName >>(data.Test<< $table.CapSingName >>[:])
+	for i, _ := range expect {
+		err = data.EqualField(response[i], expect[i], data.Compare<< $table.CapPlurName >>)
+		if err != nil {
+			t.Errorf("api returned unexpected result. " + err.Error())
+		}
+	}
+}
+
+func Test<< $table.CapSingName >>PutHandler(t *testing.T) {
+	fmt.Println("==TestToDoPutHander")
+	js, err := json.Marshal(data.Update<< $table.CapSingName >>)
+	reader := strings.NewReader(string(js))
+	req, err := http.NewRequest("PUT", "/api/<< $table.SingName >>", reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	//note id is not parsed, must use mux.SetURLVars()
+	req = mux.SetURLVars(req, map[string]string{"id": strconv.Itoa(int(data.Update<< $table.CapSingName >>.Id))})
+	rr := httptest.NewRecorder()
+	handler := http.HandlerFunc(<< $table.CapSingName >>PutHandler)
+	handler.ServeHTTP(rr, req)
+	if status := rr.Code; status != http.StatusOK {
+		t.Errorf("handler returned wrong status code: got %v want %v",
+			status, http.StatusOK)
+	} else {
+		fmt.Println("  OK: PUT on /api/<< $table.SingName >>")
+	}
+	body, err := ioutil.ReadAll(rr.Body)
+	if err != nil {
+		t.Errorf("cannot ioutil.ReadAll(request.Body): " + err.Error())
+	}
+	var response data.<< $table.CapSingName >>
+	err = json.Unmarshal([]byte(string(body)), &response)
+	if err != nil {
+		t.Errorf("cannot Unmarshall body: " + err.Error())
+	}
+	err = data.EqualField(response, data.Update<< $table.CapSingName >>, data.Compare<< $table.CapPlurName >>)
+	if err != nil {
+		t.Errorf("api returned unexpected result. " + err.Error())
+	}
+}
+
+<< end >>
+// == delete all data in reverse order to accommodate foreign keys ==
+<< range $table := .ReverseTables >>
+
+func Test<< $table.CapSingName >>DeleteHandler(t *testing.T) {
+	fmt.Println("==Test<< $table.CapSingName >>DeleteHander")
+	fmt.Println("  Deleting: ", data.Test<< $table.CapSingName >>[0].Id)
+	req, err := http.NewRequest("DELETE", "/api/<< $table.SingName >>", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	//note id is not parsed, must use mux.SetURLVars()
+	req = mux.SetURLVars(req, map[string]string{"id": strconv.Itoa(int(data.Test<< $table.CapSingName >>[0].Id))})
+	rr := httptest.NewRecorder()
+	handler := http.HandlerFunc(<< $table.CapSingName >>DeleteHandler)
+	handler.ServeHTTP(rr, req)
+	if status := rr.Code; status != http.StatusOK {
+		t.Errorf("handler returned wrong status code: got %v want %v",
+			status, http.StatusOK)
+	} else {
+		fmt.Println("  OK: DELETE on /api/<< $table.SingName >>")
+	}
+	//ensure it's gone
+	req, err = http.NewRequest("GET", "/api/<< $table.SingName >>/", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req = mux.SetURLVars(req, map[string]string{"id": strconv.Itoa(int(data.Test<< $table.CapSingName >>[0].Id))})
+	rr = httptest.NewRecorder()
+	handler = http.HandlerFunc(<< $table.CapSingName >>GetHandler)
+	handler.ServeHTTP(rr, req)
+	if status := rr.Code; status != http.StatusNotFound {
+		t.Errorf("handler returned wrong status code: got %v want %v",
+			status, http.StatusNotFound)
+	} else {
+		fmt.Println("  Done: GET with no result")
+	}
+}
+
+func Test<< $table.CapPlurName >>DeleteHandler(t *testing.T) {
+	fmt.Println("==Test<< $table.CapPlurName >>DeleteHandler")
+	req, err := http.NewRequest("DELETE", "/api/<< $table.PlurName >>", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rr := httptest.NewRecorder()
+	handler := http.HandlerFunc(<< $table.CapPlurName >>DeleteHandler)
+	handler.ServeHTTP(rr, req)
+	if status := rr.Code; status != http.StatusOK {
+		t.Errorf("handler returned wrong status code: got %v want %v",
+			status, http.StatusOK)
+	} else {
+		fmt.Println("  OK: DELETE on /api/<< $table.PlurName >>")
+	}
+	req, err = http.NewRequest("GET", "/api/<< $table.PlurName >>/", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rr = httptest.NewRecorder()
+	handler = http.HandlerFunc(<< $table.CapPlurName >>GetHandler)
+	handler.ServeHTTP(rr, req)
+	if status := rr.Code; status != http.StatusOK {
+		t.Errorf("handler returned wrong status code: got %v want %v",
+			status, http.StatusOK)
+	}
+	body, err := ioutil.ReadAll(rr.Body)
+	if err != nil {
+		t.Errorf("cannot ioutil.ReadAll(request.Body): " + err.Error())
+	}
+	var response []data.<< $table.CapSingName >>
+	err = json.Unmarshal([]byte(string(body)), &response)
+	if err != nil {
+		t.Errorf("cannot Unmarshall body: " + err.Error())
+	}
+	if len(response) > 0 {
+		t.Errorf("api returned unexpected result: got Row want NoRow")
+	} else {
+		fmt.Println("  Done: GET with no result")
+	}
+}
+<< end >>

@@ -64,6 +64,8 @@ func initTokens() {
 		"JSONB",
 		"JSON",
 		"UUID",
+		"NULL",
+		"PRIMARY",
 	}
 	Literals = []string{
 		"(",

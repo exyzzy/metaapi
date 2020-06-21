@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 
+	pluralize "github.com/gertd/go-pluralize"
 	lex "github.com/timtadh/lexmachine"
 )
 
@@ -31,6 +32,7 @@ func InitState(fname string) *StateMachine {
 	sm := new(StateMachine)
 	sm.FName = fname
 	sm.CurState = 1
+	plural = pluralize.NewClient()
 	return sm
 }
 
@@ -50,6 +52,11 @@ func create_table(sm *StateMachine, token *lex.Token) {
 func table_name(sm *StateMachine, token *lex.Token) {
 	if len(sm.Tables) > 0 {
 		sm.Tables[len(sm.Tables)-1].Name = string(token.Lexeme)
+		t := lowerize(string(token.Lexeme))
+		p := plural.Plural(t)
+		if t != p {
+			fmt.Println("WARNING: ALL TABLE NAMES SHOULD BE PLURAL: ", t, "==>", p)
+		}
 	}
 }
 
@@ -58,6 +65,8 @@ func column_name(sm *StateMachine, token *lex.Token) {
 		table := &(sm.Tables[len(sm.Tables)-1])
 		table.Columns = append(table.Columns, Column{})
 		table.Columns[len(table.Columns)-1].Name = string(token.Lexeme)
+		table.Columns[len(table.Columns)-1].Not = false
+		table.Columns[len(table.Columns)-1].Null = true //default
 	}
 }
 
@@ -69,6 +78,25 @@ func data_type(sm *StateMachine, token *lex.Token) {
 func some_ref(sm *StateMachine, token *lex.Token) {
 	column := getColumn(sm)
 	column.Ref = true
+}
+
+func col_not(sm *StateMachine, token *lex.Token) {
+	column := getColumn(sm)
+	column.Not = true
+}
+
+func col_null(sm *StateMachine, token *lex.Token) {
+	column := getColumn(sm)
+	if column.Not {
+		column.Null = false
+	} else {
+		column.Null = true
+	}
+}
+
+func col_primary(sm *StateMachine, token *lex.Token) {
+	column := getColumn(sm)
+	column.Null = false
 }
 
 func some_stuff(sm *StateMachine, token *lex.Token) {
@@ -138,7 +166,9 @@ func ProcessState(sm *StateMachine, token *lex.Token) (err error) {
 		"9,,":           {7, nop},
 		"9,)":           {11, nop},
 		"9,REFID":       {9, some_ref},
-		"9,NOT":         {9, some_stuff},
+		"9,NOT":         {9, col_not},
+		"9,NULL":        {9, col_null},
+		"9,PRIMARY":     {9, col_primary},
 		"9,ID":          {9, some_stuff},
 		"11,;":          {1, end_table},
 		"11,ID":         {11, some_stuff},

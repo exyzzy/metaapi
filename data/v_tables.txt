@@ -1,0 +1,19 @@
+{{ define "content" }}
+<v-container>
+
+    <v-row column align="center" justify="center">
+        <v-col>
+<< range $index, $table := .Tables >>    
+            <h1 color="grey darken-3" class="mb-5 mt-4 display-1 text-center">
+                << $table.CapPlurName >>
+            </h1>
+            <v-data-table 
+            :headers="<< $table.PlurName >>headers"
+            :items="<< $table.PlurName >>"
+            class="mx-2"
+            ></v-data-table>
+<< end >>
+        </v-col>
+    </v-row>
+</v-container>
+{{ end }}

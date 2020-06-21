@@ -3,25 +3,31 @@ package metasql
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
+	"go/build"
+	"io/ioutil"
 	"log"
 	"math/rand"
-	"reflect"
-	"time"
-
-	"fmt"
-	"io/ioutil"
 	"os"
+	"path/filepath"
+	"reflect"
 	"strconv"
 	"strings"
 	"text/template"
+	"time"
 
 	"github.com/exyzzy/metaapi/data"
+	pluralize "github.com/gertd/go-pluralize"
 )
+
+var plural *pluralize.Client
 
 type Column struct {
 	Name string
 	Type string
 	Ref  bool //if true is foreign key
+	Not  bool //true if Not seen in column (can refer to Null or Deferrable)
+	Null bool //column is Not Null or Null (default)
 }
 
 type Table struct {
@@ -31,7 +37,7 @@ type Table struct {
 }
 
 type StateMachine struct {
-	FName    string
+	FName    string //sql fil
 	CurState int
 	Tables   []Table
 }
@@ -45,12 +51,31 @@ func ReadSM() (sm *StateMachine, err error) {
 	return
 }
 
+type FileName struct {
+	Name   string
+	Prefix bool
+}
+
+var fileMap = map[string]FileName{
+	"api_test.txt":     {"generated_api_test.go", true},
+	"api.txt":          {"generated_api.go", true},
+	"v_api_test.txt":   {"generated_v_api_test.go", true},
+	"v_api.txt":        {"generated_v_api.go", true},
+	"v_route_test.txt": {"generated_v_route_test.go", true},
+	"v_route.txt":      {"generated_v_route.go", true},
+	"v_readme.txt":     {"README.MD", true},
+	"v_tables.txt":     {"tables.html", false},
+	"v_tables.vue.txt": {"tables.vue.js", false},
+}
+
 //Generate assumes that the primary ID is in the first column (index 0)
 func Generate(dta interface{}, txtFile string) error {
 
 	var sm StateMachine
 	var prefix string
 	var suffix string
+	// plural = pluralize.NewClient() //init in parse
+
 	// fmt.Println("GENERATE: ", reflect.TypeOf(dta).Name())
 	if reflect.TypeOf(dta).Name() == "StateMachine" {
 		sm = dta.(StateMachine)
@@ -61,14 +86,25 @@ func Generate(dta interface{}, txtFile string) error {
 		prefix = sm.FilePrefix()
 	}
 	if txtFile != "" {
-		dot := strings.Index(txtFile, ".")
+		dir, file := filepath.Split(txtFile)
+		dot := strings.Index(file, ".")
 		if dot > 0 {
-			suffix = txtFile[:dot]
+			suffix = file[:dot]
 		} else {
-			suffix = txtFile
+			suffix = file
 		}
 
-		dest := prefix + "_generated_" + suffix + ".go"
+		var dest string
+		if fileMap[file].Name != "" {
+			if fileMap[file].Prefix {
+				dest = prefix + "_"
+			}
+			dest += fileMap[file].Name
+		} else {
+			dest = prefix + "_generated_" + suffix + ".go"
+		}
+
+		dest = filepath.Join(dir, dest)
 
 		//for -pipe option, instead of data.Asset, use:
 		// dat, err := ioutil.ReadFile("./" + txtFile)
@@ -76,7 +112,7 @@ func Generate(dta interface{}, txtFile string) error {
 		// 	return err
 		// }
 
-		dat, err := data.Asset(txtFile)
+		dat, err := data.Asset(file)
 		if err != nil {
 			return err
 		}
@@ -85,8 +121,24 @@ func Generate(dta interface{}, txtFile string) error {
 	return nil
 }
 
+func jsonify(s string) string {
+	return strings.ReplaceAll(strings.ToLower(s), "_", "")
+}
+
+func nullify(c Column) string {
+	s := jsonify(c.Name)
+	if c.Null {
+		s += typeMap[c.Type][2]
+	}
+	return s
+}
+
 func generateFile(templatesrc []byte, data interface{}, dest string) error {
-	tt := template.Must(template.New("file").Delims("<<", ">>").Parse(string(templatesrc)))
+	fmap := template.FuncMap{
+		"jsonify": jsonify,
+		"nullify": nullify,
+	}
+	tt := template.Must(template.New("file").Delims("<<", ">>").Funcs(fmap).Parse(string(templatesrc)))
 	file, err := os.Create(dest)
 	if err != nil {
 		return err
@@ -98,7 +150,6 @@ func generateFile(templatesrc []byte, data interface{}, dest string) error {
 
 //======== string helpers
 
-//should use: https://github.com/blakeembrey/pluralize
 func singularize(s string) string {
 	if strings.HasSuffix(strings.ToLower(s), "s") {
 		return strings.TrimSuffix(strings.ToLower(s), "s")
@@ -152,8 +203,60 @@ func (sm *StateMachine) Package() string {
 	return os.Getenv("GOPACKAGE")
 }
 
-// Writing it to be extended
 func (sm *StateMachine) Import() string {
+
+	var s string
+
+	s += "import (\n\t\"database/sql\"\n"
+	s += "\t_ \"github.com/lib/pq\"\n)"
+	return s
+
+	// var s string
+	// var includeTime bool
+
+	// includeTime = false
+	// for _, table := range sm.Tables {
+	// 	for _, column := range table.Columns {
+	// 		switch column.Type {
+	// 		case "DATE", "TIME", "TIMESTAMP", "TIMESTAMPTZ", "INTERVAL":
+	// 			if !column.Null {
+	// 				includeTime = true
+	// 			}
+	// 		default:
+	// 		}
+	// 	}
+	// }
+	// s += "import (\n\t\"database/sql\"\n"
+	// s += "\t_ \"github.com/lib/pq\"\n"
+
+	// if includeTime {
+	// 	s += "\t\"time\"\n"
+	// }
+	// s += ")"
+	// return s
+
+}
+
+func (sm *StateMachine) ImportSQL() string {
+
+	var s string
+	var includeSQL bool
+
+	includeSQL = false
+	for _, table := range sm.Tables {
+		for i, column := range table.Columns {
+			if column.Null && (i > 0) {
+				includeSQL = true
+			}
+		}
+	}
+	if includeSQL {
+		s += "import\t\"database/sql\"\n"
+	}
+	return s
+}
+
+func (sm *StateMachine) ImportTime(ignoreNull bool) string {
 
 	var s string
 	var includeTime bool
@@ -163,31 +266,51 @@ func (sm *StateMachine) Import() string {
 		for _, column := range table.Columns {
 			switch column.Type {
 			case "DATE", "TIME", "TIMESTAMP", "TIMESTAMPTZ", "INTERVAL":
-				includeTime = true
+				if ignoreNull || (!ignoreNull && !column.Null) {
+					includeTime = true
+				}
 			default:
 			}
 		}
 	}
-	s += "import (\n\t\"database/sql\"\n"
-	s += "\t_ \"github.com/lib/pq\"\n"
-
 	if includeTime {
-		s += "\t\"time\"\n"
+		s += "import\t\"time\"\n"
 	}
-	s += ")"
 	return s
 }
 
-func (table Table) SingName() string {
-	return singularize(table.Name)
+func (sm *StateMachine) ProjName() string {
+	wd, _ := os.Getwd()
+	return (filepath.Base(wd))
 }
 
-func (table Table) CapName() string {
-	return capitalize(lowerize(table.Name))
+func (sm *StateMachine) DataPath() string {
+	gopath := os.Getenv("GOPATH")
+	if gopath == "" {
+		gopath = build.Default.GOPATH
+	}
+	gopath = filepath.Join(gopath, "src") + "/"
+	wd, _ := os.Getwd()
+	projpath := filepath.Join(strings.TrimPrefix(wd, gopath), "data")
+	return projpath
+}
+
+//new
+func (table Table) PlurName() string {
+	return plural.Plural(lowerize(table.Name))
+}
+
+func (table Table) SingName() string {
+	return plural.Singular(lowerize(table.Name))
+}
+
+//rename CapName => CapPlurName
+func (table Table) CapPlurName() string {
+	return capitalize(plural.Plural(lowerize(table.Name)))
 }
 
 func (table Table) CapSingName() string {
-	return capitalize(singularize(table.Name))
+	return capitalize(plural.Singular(lowerize(table.Name)))
 }
 
 func (table Table) DropTableStatement() string {
@@ -202,42 +325,49 @@ func (table Table) CreateTableStatement() string {
 	return s
 }
 
+// {<go type>, <go nulltype> <go nulltype field>}
+var typeMap = map[string][]string{
+	"BOOLEAN":     {"bool", "sql.NullBool", ".Bool"},
+	"BOOL":        {"bool", "sql.NullBool", ".Bool"},
+	"CHARID":      {"string", "sql.NullString", ".String"},
+	"VARCHARID":   {"string", "sql.NullString", ".String"},
+	"TEXT":        {"string", "sql.NullString", ".String"},
+	"SMALLINT":    {"int16", "sql.NullInt32", ".Int32"},
+	"INT":         {"int32", "sql.NullInt32", ".Int32"},
+	"INTEGER":     {"int32", "sql.NullInt32", ".Int32"},
+	"BIGINT":      {"int64", "sql.NullInt64", ".Int64"},
+	"SMALLSERIAL": {"int16", "sql.NullInt32", ".Int32"},
+	"SERIAL":      {"int32", "sql.NullInt32", ".Int32"},
+	"BIGSERIAL":   {"int64", "sql.NullInt64", ".Int64"},
+	"FLOATID":     {"float64", "sql.NullFloat64", ".Float64"},
+	"REAL":        {"float32", "sql.NullFloat64", ".Float64"},
+	"FLOAT8":      {"float32", "sql.NullFloat64", ".Float64"},
+	"DECIMAL":     {"float64", "sql.NullFloat64", ".Float64"},
+	"NUMERIC":     {"float64", "sql.NullFloat64", ".Float64"},
+	"NUMERICID":   {"float64", "sql.NullFloat64", ".Float64"},
+	"PRECISION":   {"float64", "sql.NullFloat64", ".Float64"}, //DOUBLE PRECISION
+	"DATE":        {"time.Time", "sql.NullTime", ".Time"},
+	"TIME":        {"time.Time", "sql.NullTime", ".Time"},
+	"TIMESTAMPTZ": {"time.Time", "sql.NullTime", ".Time"},
+	"TIMESTAMP":   {"time.Time", "sql.NullTime", ".Time"},
+	"INTERVAL":    {"string", "sql.NullString", ".String"},
+	"JSON":        {"string", "sql.NullString", ".String"},
+	"JSONB":       {"string", "sql.NullString", ".String"},
+	"UUID":        {"string", "sql.NullString", ".String"},
+}
+
 func (table Table) StructFields() string {
 
-	var typeMap = map[string]string{
-		"BOOLEAN":     "bool",
-		"BOOL":        "bool",
-		"CHARID":      "string",
-		"VARCHARID":   "string",
-		"TEXT":        "string",
-		"SMALLINT":    "int16",
-		"INT":         "int32",
-		"INTEGER":     "int32",
-		"BIGINT":      "int64",
-		"SMALLSERIAL": "int16",
-		"SERIAL":      "int32",
-		"BIGSERIAL":   "int64",
-		"FLOATID":     "float64",
-		"REAL":        "float32",
-		"FLOAT8":      "float32",
-		"DECIMAL":     "float64",
-		"NUMERIC":     "float64",
-		"NUMERICID":   "float64",
-		"PRECISION":   "float64", //DOUBLE PRECISION
-		"DATE":        "time.Time",
-		"TIME":        "time.Time",
-		"TIMESTAMPTZ": "time.Time",
-		"TIMESTAMP":   "time.Time",
-		"INTERVAL":    "string",
-		"JSON":        "string",
-		"JSONB":       "string",
-		"UUID":        "string",
-	}
 	var s string
 
-	for _, column := range table.Columns {
-		s += "\t" + camelize(column.Name)
-		s += " " + typeMap[column.Type]
+	for i, column := range table.Columns {
+		s += "\t" + camelize(column.Name) + " "
+		if column.Null && (i > 0) {
+			s += typeMap[column.Type][1]
+		} else {
+			s += typeMap[column.Type][0]
+		}
+		// s += " " + typeMap[column.Type][0]
 		s += "`xml:\"" + camelize(column.Name) + "\" json:\"" + lowerize(camelize(column.Name)) + "\"`"
 		s += "\n"
 	}
@@ -438,11 +568,11 @@ var dataMap = map[string]testFuncs{
 	"INT":         {int32TestData, "defaultCompare"},
 	"INTEGER":     {int32TestData, "defaultCompare"},
 	"BIGINT":      {int32TestData, "defaultCompare"},
-	"SMALLSERIAL": {serialTestData, "defaultCompare"},
+	"SMALLSERIAL": {smallserialTestData, "defaultCompare"},
 	"SERIAL":      {serialTestData, "defaultCompare"},
-	"BIGSERIAL":   {serialTestData, "defaultCompare"},
+	"BIGSERIAL":   {bigserialTestData, "defaultCompare"},
 	"FLOATID":     {float64TestData, "defaultCompare"}, //Needs custom compare to work for all cases
-	"REAL":        {float32TestData, "defaultCompare"},
+	"REAL":        {float32Trunc6TestData, "realCompare"},
 	"FLOAT8":      {float32TestData, "defaultCompare"},
 	"DECIMAL":     {float64TestData, "defaultCompare"},
 	"NUMERIC":     {float64TestData, "defaultCompare"},
@@ -473,71 +603,192 @@ func (table Table) TestData(dataid int) string {
 
 	var s string
 
-	s = "{"
+	s = ""
 	for columnid, column := range table.Columns {
-		s += " " + dataMap[column.Type].GenerateData(dataid, columnid, column)
+		s += " " + camelize(column.Name) + ": " + dataMap[column.Type].GenerateData(dataid, columnid, column)
 		s += comma(columnid, len(table.Columns))
 	}
-	s += "}"
 	return s
 }
 
+func nullPrefix(datatype string, column Column) string {
+	if column.Null {
+		return (typeMap[datatype][1] + "{")
+	} else {
+		return ""
+	}
+
+}
+
+func nullSuffix(column Column) string {
+	if column.Null {
+		return (", true}")
+	} else {
+		return ""
+	}
+}
+
 func boolTestData(dataid int, columnid int, column Column) string {
-	return (strconv.FormatBool(rand.Intn(2) != 0))
+	s := nullPrefix("BOOL", column)
+	s += strconv.FormatBool(rand.Intn(2) != 0)
+	s += nullSuffix(column)
+	return (s)
 }
 func stringTestData(dataid int, columnid int, column Column) string {
-	return ("\"" + randString(16) + "\"")
+	s := nullPrefix("TEXT", column)
+	s += "\"" + randString(16) + "\""
+	s += nullSuffix(column)
+	return (s)
 }
 func int16TestData(dataid int, columnid int, column Column) string {
-	if columnid == 0 || column.Ref { //assume serial
-		return (strconv.FormatInt(int64(dataid), 10))
+	s := ""
+	if columnid == 0 { //assume primary
+		s += strconv.FormatInt(int64(dataid), 10)
+	} else if column.Ref {
+		s += nullPrefix("INT", column)
+		s += strconv.FormatInt(int64(dataid), 10)
+		s += nullSuffix(column)
 	} else {
-		return (strconv.FormatInt(int64(rand.Intn(32767)), 10))
+		s += nullPrefix("INT", column)
+		s += strconv.FormatInt(int64(rand.Intn(32767)), 10)
+		s += nullSuffix(column)
 	}
+	return s
 }
 func int32TestData(dataid int, columnid int, column Column) string {
-	if columnid == 0 || column.Ref { //assume serial
-		return (strconv.FormatInt(int64(dataid), 10))
+	s := ""
+	if columnid == 0 { //assume primary
+		s += strconv.FormatInt(int64(dataid), 10)
+	} else if column.Ref {
+		s += nullPrefix("INT", column)
+		s += strconv.FormatInt(int64(dataid), 10)
+		s += nullSuffix(column)
 	} else {
-		return (strconv.FormatInt(int64(rand.Int31()), 10))
+		s += nullPrefix("INT", column)
+		s += strconv.FormatInt(int64(rand.Int31()), 10)
+		s += nullSuffix(column)
 	}
+	return s
 }
 func int64TestData(dataid int, columnid int, column Column) string {
-	if columnid == 0 || column.Ref { //assume serial
-		return (strconv.FormatInt(int64(dataid), 10))
+	s := ""
+	if columnid == 0 { //assume primary
+		s += strconv.FormatInt(int64(dataid), 10)
+	} else if column.Ref {
+		s += nullPrefix("BIGINT", column)
+		s += strconv.FormatInt(int64(dataid), 10)
+		s += nullSuffix(column)
 	} else {
-		return (strconv.FormatInt(rand.Int63(), 10))
+		s += nullPrefix("BIGINT", column)
+		s += strconv.FormatInt(rand.Int63(), 10)
+		s += nullSuffix(column)
 	}
+	return s
+}
+func smallserialTestData(dataid int, columnid int, column Column) string {
+	s := ""
+	if columnid == 0 { //assume primary
+		s += strconv.FormatInt(int64(dataid), 10)
+	} else if column.Ref {
+		s += nullPrefix("SMALLSERIAL", column)
+		s += strconv.FormatInt(int64(dataid), 10)
+		s += nullSuffix(column)
+	} else {
+		s += nullPrefix("SMALLSERIAL", column)
+		s += strconv.FormatInt(int64(dataid), 10)
+		s += nullSuffix(column)
+	}
+	return s
 }
 func serialTestData(dataid int, columnid int, column Column) string {
-	return strconv.Itoa(dataid)
+	s := ""
+	if columnid == 0 { //assume primary
+		s += strconv.FormatInt(int64(dataid), 10)
+	} else if column.Ref {
+		s += nullPrefix("SERIAL", column)
+		s += strconv.FormatInt(int64(dataid), 10)
+		s += nullSuffix(column)
+	} else {
+		s += nullPrefix("SERIAL", column)
+		s += strconv.FormatInt(int64(dataid), 10)
+		s += nullSuffix(column)
+	}
+	return s
+}
+func bigserialTestData(dataid int, columnid int, column Column) string {
+	s := ""
+	if columnid == 0 { //assume primary
+		s += strconv.FormatInt(int64(dataid), 10)
+	} else if column.Ref {
+		s += nullPrefix("BIGSERIAL", column)
+		s += strconv.FormatInt(int64(dataid), 10)
+		s += nullSuffix(column)
+	} else {
+		s += nullPrefix("BIGSERIAL", column)
+		s += strconv.FormatInt(int64(dataid), 10)
+		s += nullSuffix(column)
+	}
+	return s
 }
 func float64TestData(dataid int, columnid int, column Column) string {
-	return (strconv.FormatFloat(rand.NormFloat64(), 'f', -1, 64))
+	s := nullPrefix("DECIMAL", column)
+	s += strconv.FormatFloat(rand.NormFloat64(), 'f', -1, 64)
+	s += nullSuffix(column)
+	return s
 }
 func float32TestData(dataid int, columnid int, column Column) string {
-	return (strconv.FormatFloat(float64(rand.Float32()), 'f', -1, 32))
+	s := nullPrefix("REAL", column)
+	s += strconv.FormatFloat(float64(rand.Float32()), 'f', -1, 32)
+	s += nullSuffix(column)
+	return s
 }
-func timeTestData(dataid int, columnid int, column Column) string {
-	return "time.Date(0000, time.January, 1, time.Now().UTC().Hour(), time.Now().UTC().Minute(), time.Now().UTC().Second(), time.Now().UTC().Nanosecond(), time.UTC).Truncate(time.Microsecond)"
-}
-func timestampTestData(dataid int, columnid int, column Column) string {
-	return "time.Now().UTC().Truncate(time.Microsecond)"
-}
-func durationTestData(dataid int, columnid int, column Column) string {
-	return "\"12:34:45\""
+func float32Trunc6TestData(dataid int, columnid int, column Column) string {
+	s := nullPrefix("REAL", column)
+	s += strconv.FormatFloat(float64(rand.Float32()), 'f', 6, 32)
+	s += nullSuffix(column)
+	return s
 }
 func dateTestData(dataid int, columnid int, column Column) string {
-	return "time.Now().UTC().Truncate(time.Hour * 24)"
+	s := nullPrefix("DATE", column)
+	s += "time.Now().UTC().Truncate(time.Hour * 24)"
+	s += nullSuffix(column)
+	return s
+}
+func timeTestData(dataid int, columnid int, column Column) string {
+	s := nullPrefix("TIME", column)
+	s += "time.Date(0000, time.January, 1, time.Now().UTC().Hour(), time.Now().UTC().Minute(), time.Now().UTC().Second(), time.Now().UTC().Nanosecond(), time.UTC).Truncate(time.Microsecond)"
+	s += nullSuffix(column)
+	return s
+}
+func timestampTestData(dataid int, columnid int, column Column) string {
+	s := nullPrefix("TIMESTAMPTZ", column)
+	s += "time.Now().UTC().Truncate(time.Microsecond)"
+	s += nullSuffix(column)
+	return s
+}
+func durationTestData(dataid int, columnid int, column Column) string {
+	s := nullPrefix("INTERVAL", column)
+	s += "\"12:34:45\""
+	s += nullSuffix(column)
+	return s
 }
 func jsonTestData(dataid int, columnid int, column Column) string {
-	return randJson()
+	s := nullPrefix("JSON", column)
+	s += randJson()
+	s += nullSuffix(column)
+	return s
 }
 func jsonbTestData(dataid int, columnid int, column Column) string {
-	return randJson()
+	s := nullPrefix("JSONB", column)
+	s += randJson()
+	s += nullSuffix(column)
+	return s
 }
 func uuidTestData(dataid int, columnid int, column Column) string {
-	return "\"" + randUUID() + "\""
+	s := nullPrefix("UUID", column)
+	s += "\"" + randUUID() + "\""
+	s += nullSuffix(column)
+	return s
 }
 
 func randString(length int) string {

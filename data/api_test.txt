@@ -10,8 +10,10 @@ import (
 	"reflect"
 	"strings"
 	"testing"
-	"time"
+    "strconv"
 )
+
+<< .ImportTime  true >>
 
 var testDb *sql.DB
 var configdb map[string]interface{}
@@ -128,15 +130,36 @@ func jsonCompare(result, expect interface{}) bool {
 
 	//json fields can be any order after db return, so read into map[string]interface and look up
 	resultMap := make(map[string]interface{})
-	err := json.Unmarshal([]byte(result.(string)), &resultMap)
-	if err != nil {
-		log.Panic(err)
-	}
 	expectMap := make(map[string]interface{})
-	err = json.Unmarshal([]byte(expect.(string)), &expectMap)
-	if err != nil {
-		log.Panic(err)
+
+	if reflect.TypeOf(result).String() == "sql.NullString" {
+		err := json.Unmarshal([]byte(result.(sql.NullString).String), &resultMap)
+		if err != nil {
+			log.Panic(err)
+		}
+		err = json.Unmarshal([]byte(expect.(sql.NullString).String), &expectMap)
+		if err != nil {
+			log.Panic(err)
+		}
+	} else {
+		err := json.Unmarshal([]byte(result.(string)), &resultMap)
+		if err != nil {
+			log.Panic(err)
+		}
+		err = json.Unmarshal([]byte(expect.(string)), &expectMap)
+		if err != nil {
+			log.Panic(err)
+		}
 	}
+
+	for k, v := range expectMap {
+		if v != resultMap[k] {
+			fmt.Printf("Key: %v, Result: %v, Expect: %v", k, resultMap[k], v)
+			return false
+		}
+	}
+	return true
+}
 
 	for k, v := range expectMap {
 		if v != resultMap[k] {
@@ -161,6 +184,23 @@ func stringCompare(result, expect interface{}) bool {
 	return (strings.TrimSpace(string(resultJson)) == strings.TrimSpace(string(expectJson)))
 }
 
+//psgl truncs reals at 6 digits
+func realCompare(result, expect interface{}) bool {
+
+	fmt.Printf("  realCompare: %v, %v -  %T, %T \n", result, expect, result, expect)
+
+	var resultStr string
+	var expectStr string
+	if reflect.TypeOf(result).String() == "sql.NullFloat64" {
+		resultStr = strconv.FormatFloat(result.(sql.NullFloat64).Float64, 'f', 6, 32)
+		expectStr = strconv.FormatFloat(expect.(sql.NullFloat64).Float64, 'f', 6, 32)
+	} else {
+		resultStr = strconv.FormatFloat(float64(result.(float32)), 'f', 6, 32)
+		expectStr = strconv.FormatFloat(float64(expect.(float32)), 'f', 6, 32)
+	}
+	return (resultStr == expectStr)
+}
+
 //iterate through each field of struct and apply the compare function to each field based on compareType map
 func equalField(result, expect interface{}, compMap map[string]compareType) error {
 
@@ -181,7 +221,7 @@ func equalField(result, expect interface{}, compMap map[string]compareType) erro
 //table specific 
 
 << range $table := .Tables >>
-const << $table.Name >>tableName = "<< $table.Name >>"
+const << $table.PlurName >>tableName = "<< $table.PlurName >>"
 
 //test data - note: double brackets in test data need space between otherwise are interpreted as template action
 var test<< $table.CapSingName >> = [2]<< $table.CapSingName >>{ << $table.TestData 1 >>, << $table.TestData 2 >> }
@@ -189,30 +229,29 @@ var test<< $table.CapSingName >> = [2]<< $table.CapSingName >>{ << $table.TestDa
 var update<< $table.CapSingName >> = << $table.CapSingName >><< $table.TestData 1 >>
 
 //compare functions
-var compare<< $table.CapName >> = map[string]compareType{
+var compare<< $table.CapPlurName >> = map[string]compareType{
 << $table.CompareMapFields >>
 }
 
-func reverse<< $table.CapName >>(<< $table.Name >> []<< $table.CapSingName >>) (result []<< $table.CapSingName >>) {
+func reverse<< $table.CapPlurName >>(<< $table.PlurName >> []<< $table.CapSingName >>) (result []<< $table.CapSingName >>) {
 
-	for i := len(<< $table.Name >>) - 1; i >= 0; i-- {
-		result = append(result, << $table.Name >>[i])
+	for i := len(<< $table.PlurName >>) - 1; i >= 0; i-- {
+		result = append(result, << $table.PlurName >>[i])
 	}
 	return
 }
 
 // ======= tests: << $table.CapSingName >> =======
 
-func TestCreateTable<< $table.CapName >>(t *testing.T) {
-	fmt.Println("==CreateTable<< $table.CapName >>")
-
-	err := CreateTable<< $table.CapName >>(testDb)
+func TestCreateTable<< $table.CapPlurName >>(t *testing.T) {
+	fmt.Println("==CreateTable<< $table.CapPlurName >>")
+	err := CreateTable<< $table.CapPlurName >>(testDb)
 	if err != nil {
-		t.Errorf("cannot CreateTable<< $table.CapName >> " + err.Error())
+		t.Errorf("cannot CreateTable<< $table.CapPlurName >> " + err.Error())
 	} else {
-		fmt.Println("  Done: CreateTable<< $table.CapName >>")
+		fmt.Println("  Done: CreateTable<< $table.CapPlurName >>")
 	}
-	exists, err := tableExists(testDb, << $table.Name >>tableName)
+	exists, err := tableExists(testDb, "<< $table.Name >>")
 	if err != nil {
 		t.Errorf("cannot tableExists " + err.Error())
 	}
@@ -225,15 +264,13 @@ func TestCreateTable<< $table.CapName >>(t *testing.T) {
 
 func TestCreate<< $table.CapSingName >>(t *testing.T) {
 	fmt.Println("==Create<< $table.CapSingName >>")
-
 	result, err := test<< $table.CapSingName >>[0].Create<< $table.CapSingName >>(testDb)
 	if err != nil {
 		t.Errorf("cannot Create<< $table.CapSingName >> " + err.Error())
 	} else {
 		fmt.Println("  Done: Create<< $table.CapSingName >>")
 	}
-
-	err = equalField(result, test<< $table.CapSingName >>[0], compare<< $table.CapName >>)
+	err = equalField(result, test<< $table.CapSingName >>[0], compare<< $table.CapPlurName >>)
 	if err != nil {
 		t.Errorf("api returned unexpected result. " + err.Error())
 	}
@@ -241,58 +278,52 @@ func TestCreate<< $table.CapSingName >>(t *testing.T) {
 
 func TestRetrieve<< $table.CapSingName >>(t *testing.T) {
 	fmt.Println("==Retrieve<< $table.CapSingName >>")
-
 	result, err := test<< $table.CapSingName >>[0].Retrieve<< $table.CapSingName >>(testDb)
 	if err != nil {
 		t.Errorf("cannot Retrieve<< $table.CapSingName >> " + err.Error())
 	} else {
 		fmt.Println("  Done: Retrieve<< $table.CapSingName >>")
 	}
-	err = equalField(result, test<< $table.CapSingName >>[0], compare<< $table.CapName >>)
+	err = equalField(result, test<< $table.CapSingName >>[0], compare<< $table.CapPlurName >>)
 	if err != nil {
 		t.Errorf("api returned unexpected result. " + err.Error())
 	}
 }
 
-func TestRetrieveAll<< $table.CapName >>(t *testing.T) {
-	fmt.Println("==RetrieveAll<< $table.CapName >>")
-
+func TestRetrieveAll<< $table.CapPlurName >>(t *testing.T) {
+	fmt.Println("==RetrieveAll<< $table.CapPlurName >>")
 	_, err := test<< $table.CapSingName >>[1].Create<< $table.CapSingName >>(testDb)
 	if err != nil {
 		t.Errorf("cannot Create<< $table.CapSingName >> " + err.Error())
 	} else {
 		fmt.Println("  Done: Create<< $table.CapSingName >>")
 	}
-	result, err := RetrieveAll<< $table.CapName >>(testDb)
+	result, err := RetrieveAll<< $table.CapPlurName >>(testDb)
 	if err != nil {
-		t.Errorf("cannot RetrieveAll<< $table.CapName >> " + err.Error())
+		t.Errorf("cannot RetrieveAll<< $table.CapPlurName >> " + err.Error())
 	} else {
-		fmt.Println("  Done: RetrieveAll<< $table.CapName >>")
+		fmt.Println("  Done: RetrieveAll<< $table.CapPlurName >>")
 	}
-
 	//reverse because api is DESC, [:] is slice of all array elements
-	expect := reverse<< $table.CapName >>(test<< $table.CapSingName >>[:])
+	expect := reverse<< $table.CapPlurName >>(test<< $table.CapSingName >>[:])
 	for i, _ := range expect {
-		err = equalField(result[i], expect[i], compare<< $table.CapName >>)
+		err = equalField(result[i], expect[i], compare<< $table.CapPlurName >>)
 		if err != nil {
 			t.Errorf("api returned unexpected result. " + err.Error())
 		}
-
 	}
-
 }
 
 
 func TestUpdate<< $table.CapSingName >>(t *testing.T) {
 	fmt.Println("==Update<< $table.CapSingName >>")
-
 	result, err := update<< $table.CapSingName >>.Update<< $table.CapSingName >>(testDb)
 	if err != nil {
 		t.Errorf("cannot Update<< $table.CapSingName >> " + err.Error())
 	} else {
 		fmt.Println("  Done: Update<< $table.CapSingName >>")
 	}
-	err = equalField(result, update<< $table.CapSingName >>, compare<< $table.CapName >>)
+	err = equalField(result, update<< $table.CapSingName >>, compare<< $table.CapPlurName >>)
 	if err != nil {
 		t.Errorf("api returned unexpected result. " + err.Error())
 	}
@@ -304,7 +335,6 @@ func TestUpdate<< $table.CapSingName >>(t *testing.T) {
 
 func TestDelete<< $table.CapSingName >>(t *testing.T) {
 	fmt.Println("==Delete<< $table.CapSingName >>")
-
 	err := test<< $table.CapSingName >>[0].Delete<< $table.CapSingName >>(testDb)
 	if err != nil {
 		t.Errorf("cannot Delete<< $table.CapSingName >> " + err.Error())
@@ -323,24 +353,22 @@ func TestDelete<< $table.CapSingName >>(t *testing.T) {
 	}
 }
 
-func TestDeleteAll<< $table.CapName >>(t *testing.T) {
-	fmt.Println("==DeleteAll<< $table.CapName >>")
-
-	err := DeleteAll<< $table.CapName >>(testDb)
+func TestDeleteAll<< $table.CapPlurName >>(t *testing.T) {
+	fmt.Println("==DeleteAll<< $table.CapPlurName >>")
+	err := DeleteAll<< $table.CapPlurName >>(testDb)
 	if err != nil {
-		t.Errorf("cannot DeleteAll<< $table.CapName >> " + err.Error())
+		t.Errorf("cannot DeleteAll<< $table.CapPlurName >> " + err.Error())
 	} else {
-		fmt.Println("  Done: DeleteAll<< $table.CapName >>")
+		fmt.Println("  Done: DeleteAll<< $table.CapPlurName >>")
 	}
-	result, err := RetrieveAll<< $table.CapName >>(testDb)
-
+	result, err := RetrieveAll<< $table.CapPlurName >>(testDb)
 	if err != nil {
-		t.Errorf("cannot RetrieveAll<< $table.CapName >> " + err.Error())
+		t.Errorf("cannot RetrieveAll<< $table.CapPlurName >> " + err.Error())
 	}
 	if len(result) > 0 {
 		t.Errorf("api returned unexpected result: got Row want NoRow")
 	} else {
-		fmt.Println("  Done: RetrieveAll<< $table.CapName >> with no result")
+		fmt.Println("  Done: RetrieveAll<< $table.CapPlurName >> with no result")
 	}
 }
 << end >>

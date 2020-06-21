@@ -1,0 +1,53 @@
+{{ define "vue" }}
+ <script>
+new Vue({
+    delimiters: ["${", "}"], //required to not conflict with go template action delimiters
+    el: "#app",
+    vuetify: new Vuetify(),
+    data: () => ({
+<< range $index, $table := .Tables >>    
+        << $table.PlurName >>headers: [
+    << range $cindex, $column := $table.Columns >>                
+            {
+                text: "<< $column.Name >>",
+                value: "<< nullify $column >>",
+            },
+    << end >>
+        ],
+        << $table.PlurName >>: [],
+<< end >>
+        nodata: 0
+    }),
+    mounted: function() {
+        this.$nextTick(function () {
+<< range $index, $table := .Tables >>    
+            this.load<< $table.CapPlurName >>();
+<< end >>
+        })
+    },
+    methods: {
+<< range $index, $table := .Tables >>    
+        load<< $table.CapPlurName >> () {
+            axios.get('/api/<< $table.PlurName >>', 
+            )
+            .then((response) => {
+
+                if (response.data == null ) {
+                    console.log("no << $table.PlurName >> returned")
+                } else {
+
+                    for (let i= 0; i < response.data.length; i++) {
+                        this.<< $table.PlurName >>.push(response.data[i])
+                    }
+
+                }
+            })
+
+        },
+<< end >>
+        nofunc () {
+        }
+    }
+});
+</script>
+{{ end }}

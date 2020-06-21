@@ -1,0 +1,28 @@
+package data
+
+<< .ImportTime true>>
+<< .ImportSQL >>
+
+<< range $table := .Tables >>
+const << $table.CapPlurName >>TableName = "<< $table.PlurName >>"
+
+//test data - note: double brackets in test data need space between otherwise are interpreted as template action
+var Test<< $table.CapSingName >> = [2]<< $table.CapSingName >>{ { << $table.TestData 1 >>},{ << $table.TestData 2 >>} }
+
+var Update<< $table.CapSingName >> = << $table.CapSingName >>{<< $table.TestData 1 >>}
+
+//compare functions
+var Compare<< $table.CapPlurName >> = map[string]CompareType{
+<< $table.CompareMapFields >>
+//#SPLICE# compare<<$table.PlurName>> {[< block "compare<<$table.PlurName>>" . >]}{[< end >]}
+//#SPLICE# end
+}
+
+func Reverse<< $table.CapPlurName >>(<< $table.PlurName >> []<< $table.CapSingName >>) (result []<< $table.CapSingName >>) {
+
+	for i := len(<< $table.PlurName >>) - 1; i >= 0; i-- {
+		result = append(result, << $table.PlurName >>[i])
+	}
+	return
+}
+<< end >>

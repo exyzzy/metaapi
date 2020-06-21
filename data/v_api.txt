@@ -1,13 +1,44 @@
 //Auto generated with MetaApi https://github.com/exyzzy/metaapi
-package << .Package >>
+package data
 
 << .Import >>
 << .ImportTime false >>
 
+//#SPLICE# func {[< template "func" . >]}
+//#SPLICE# end
+
+
+//Create Tables if required
+type CreateTableFunc func(*sql.DB) error
+type tableFuncs struct {
+	TableName  string
+	CreateFunc CreateTableFunc
+}
+
+var TableNames = []tableFuncs{
 << range $index, $table := .Tables >>
+	{"<< $table.PlurName >>", CreateTable<< $table.CapPlurName >>},
+<< end >>
+}
 
-// ======= << $table.CapSingName >> =======
+func CreateTables(db *sql.DB) (err error) {
+	for _, t := range TableNames {
+		var exists bool
+		exists, err = TableExists(db, t.TableName)
+		if err != nil {
+			return
+		}
+		if !exists {
+			err = t.CreateFunc(db) //CreateTable..
+			if err != nil {
+				return
+			}
+		}
+	}
+	return
+}
 
+<< range $index, $table := .Tables >>
 //Create Table
 func CreateTable<< $table.CapPlurName >>(db *sql.DB) (err error) {
 	_, err = db.Exec<< $table.DropTableStatement >>
@@ -27,6 +58,8 @@ func DropTable<< $table.CapPlurName >>(db *sql.DB) (err error) {
 //Struct
 type << $table.CapSingName >> struct {
 << $table.StructFields >>
+//#SPLICE# <<$table.SingName>> {[< block "<<$table.SingName>>" . >]}{[< end >]}
+//#SPLICE# end
 }
 
 //Create
