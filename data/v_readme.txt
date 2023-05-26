@@ -32,10 +32,10 @@ go install
 << range $index, $table := .Tables >>
 DELETE /api/<< $table.SingName >>/createtable
 POST /api/<< $table.SingName >>
-GET /api/<< $table.SingName >>/{id}
 GET /api/<< $table.SingName >>
-PUT /api/<< $table.SingName >>/{id}
-DELETE /api/<< $table.SingName >>/{id}
+GET /api/<< $table.SingName >>
+PUT /api/<< $table.SingName >>
+DELETE /api/<< $table.SingName >>
 DELETE /api/<< $table.PlurName >>
 
 type << $table.CapSingName >> struct {

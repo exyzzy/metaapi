@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"github.com/gorilla/mux"
 	"net/http"
-	"strconv"
 	"<< .DataPath >>"
 )
 
@@ -20,10 +19,10 @@ func AddAllMainRoutes(r *mux.Router) {
 << range $index, $table := .Tables >>    
 	r.HandleFunc("/api/<< $table.SingName >>/createtable", << $table.CapSingName >>CreateTableHandler).Methods("DELETE")
 	r.HandleFunc("/api/<< $table.SingName >>", << $table.CapSingName >>PostHandler).Methods("POST")
-	r.HandleFunc("/api/<< $table.SingName >>/{id}", << $table.CapSingName >>GetHandler).Methods("GET")
+	r.HandleFunc("/api/<< $table.SingName >>", << $table.CapSingName >>GetHandler).Methods("GET")
 	r.HandleFunc("/api/<< $table.PlurName >>", << $table.CapPlurName >>GetHandler).Methods("GET")
-	r.HandleFunc("/api/<< $table.SingName >>/{id}", << $table.CapSingName >>PutHandler).Methods("PUT")
-	r.HandleFunc("/api/<< $table.SingName >>/{id}", << $table.CapSingName >>DeleteHandler).Methods("DELETE")
+	r.HandleFunc("/api/<< $table.SingName >>", << $table.CapSingName >>PutHandler).Methods("PUT")
+	r.HandleFunc("/api/<< $table.SingName >>", << $table.CapSingName >>DeleteHandler).Methods("DELETE")
 	r.HandleFunc("/api/<< $table.PlurName >>", << $table.CapPlurName >>DeleteHandler).Methods("DELETE")
 << end >>
 	//#SPLICE# addallmainroutes {[< template "addallmainroutes" . >]}
@@ -65,16 +64,15 @@ func << $table.CapSingName >>PostHandler(writer http.ResponseWriter, request *ht
 	respondWithJSON(writer, http.StatusOK, response)
 }
 
-// r.HandleFunc("/api/<< $table.SingName >>/{id}", << $table.CapSingName >>GetHandler).Methods("GET")
+// r.HandleFunc("/api/<< $table.SingName >>", << $table.CapSingName >>GetHandler).Methods("GET")
 func << $table.CapSingName >>GetHandler(writer http.ResponseWriter, request *http.Request) {
-	params := mux.Vars(request)
-	id, err := strconv.Atoi(params["id"])
-	if err != nil {
-		respondWithMessage(writer, http.StatusBadRequest, "Invalid << $table.SingName >> ID")
+	var << $table.SingName >> data.<< $table.CapSingName >>
+	decoder := json.NewDecoder(request.Body)
+	if err := decoder.Decode(&<< $table.SingName >>); err != nil {
+		respondWithMessage(writer, http.StatusBadRequest, "Invalid request payload")
 		return
 	}
-	var << $table.SingName >> data.<< $table.CapSingName >>
-	<< $table.SingName >>.Id = int32(id)
+	defer request.Body.Close()
 	response, err := << $table.SingName >>.Retrieve<< $table.CapSingName >>(data.Db)
 	if err != nil {
 		switch err {
@@ -98,14 +96,8 @@ func << $table.CapPlurName >>GetHandler(writer http.ResponseWriter, request *htt
 	respondWithJSON(writer, http.StatusOK, response)
 }
 
-// r.HandleFunc("/api/<< $table.SingName >>/{id}", << $table.CapSingName >>PutHandler).Methods("PUT")
+// r.HandleFunc("/api/<< $table.SingName >>", << $table.CapSingName >>PutHandler).Methods("PUT")
 func << $table.CapSingName >>PutHandler(writer http.ResponseWriter, request *http.Request) {
-	params := mux.Vars(request)
-	id, err := strconv.Atoi(params["id"])
-	if err != nil {
-		respondWithMessage(writer, http.StatusBadRequest, "Invalid << $table.SingName >> ID")
-		return
-	}
 	var << $table.SingName >> data.<< $table.CapSingName >>
 	decoder := json.NewDecoder(request.Body)
 	if err := decoder.Decode(&<< $table.SingName >>); err != nil {
@@ -113,8 +105,6 @@ func << $table.CapSingName >>PutHandler(writer http.ResponseWriter, request *htt
 		return
 	}
 	defer request.Body.Close()
-	<< $table.SingName >>.Id = int32(id)
-	// << $table.SingName >>.UpdatedAt = time.Now().UTC() //breaks tests
 	response, err := << $table.SingName >>.Update<< $table.CapSingName >>(data.Db)
 	if err != nil {
 		respondWithMessage(writer, http.StatusInternalServerError, err.Error())
@@ -123,17 +113,16 @@ func << $table.CapSingName >>PutHandler(writer http.ResponseWriter, request *htt
 	respondWithJSON(writer, http.StatusOK, response)
 }
 
-// r.HandleFunc("/api/<< $table.SingName >>/{id}", << $table.CapSingName >>DeleteHandler).Methods("DELETE")
+// r.HandleFunc("/api/<< $table.SingName >>", << $table.CapSingName >>DeleteHandler).Methods("DELETE")
 func << $table.CapSingName >>DeleteHandler(writer http.ResponseWriter, request *http.Request) {
-	params := mux.Vars(request)
-	id, err := strconv.Atoi(params["id"])
-	if err != nil {
-		respondWithMessage(writer, http.StatusBadRequest, "Invalid << $table.SingName >> ID")
+	var << $table.SingName >> data.<< $table.CapSingName >>
+	decoder := json.NewDecoder(request.Body)
+	if err := decoder.Decode(&<< $table.SingName >>); err != nil {
+		respondWithMessage(writer, http.StatusBadRequest, "Invalid request payload")
 		return
 	}
-	var << $table.SingName >> data.<< $table.CapSingName >>
-	<< $table.SingName >>.Id = int32(id)
-	err = << $table.SingName >>.Delete<< $table.CapSingName >>(data.Db)
+	defer request.Body.Close()
+	err := << $table.SingName >>.Delete<< $table.CapSingName >>(data.Db)
 	if err != nil {
 		respondWithMessage(writer, http.StatusInternalServerError, err.Error())
 		return

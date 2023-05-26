@@ -23,11 +23,12 @@ import (
 var plural *pluralize.Client
 
 type Column struct {
-	Name string
-	Type string
-	Ref  bool //if true is foreign key
-	Not  bool //true if Not seen in column (can refer to Null or Deferrable)
-	Null bool //column is Not Null or Null (default)
+	Name      string
+	Type      string
+	Ref       bool //if true is foreign key
+	Not       bool //true if Not seen in column (can refer to Null or Deferrable)
+	Null      bool //column is Not Null or Null (default)
+	Generated bool //true if GENERATED in column
 }
 
 type Table struct {
@@ -68,7 +69,7 @@ var fileMap = map[string]FileName{
 	"v_tables.vue.txt": {"tables.vue.js", false},
 }
 
-//Generate assumes that the primary ID is in the first column (index 0)
+// Generate assumes that the primary ID is in the first column (index 0)
 func Generate(dta interface{}, txtFile string) error {
 
 	var sm StateMachine
@@ -166,7 +167,7 @@ func lowerize(s string) string {
 	return strings.ToLower(s)
 }
 
-//turns submitted_at into SubmittedAt, and otherwise capitalizes
+// turns submitted_at into SubmittedAt, and otherwise capitalizes
 func camelize(s string) string {
 	return strings.ReplaceAll(strings.Title(strings.ReplaceAll(strings.ToLower(s), "_", " ")), " ", "")
 }
@@ -295,7 +296,7 @@ func (sm *StateMachine) DataPath() string {
 	return projpath
 }
 
-//new
+// new
 func (table Table) PlurName() string {
 	return plural.Plural(lowerize(table.Name))
 }
@@ -304,7 +305,7 @@ func (table Table) SingName() string {
 	return plural.Singular(lowerize(table.Name))
 }
 
-//rename CapName => CapPlurName
+// rename CapName => CapPlurName
 func (table Table) CapPlurName() string {
 	return capitalize(plural.Plural(lowerize(table.Name)))
 }
@@ -354,6 +355,7 @@ var typeMap = map[string][]string{
 	"JSON":        {"string", "sql.NullString", ".String"},
 	"JSONB":       {"string", "sql.NullString", ".String"},
 	"UUID":        {"string", "sql.NullString", ".String"},
+	"BYTEA":       {"[]byte", "[]byte", ""},
 }
 
 func (table Table) StructFields() string {
@@ -401,7 +403,7 @@ func (table Table) CreateStatement() string {
 	s += "(\"INSERT INTO " + table.Name + " ("
 
 	for i, column := range table.Columns {
-		if i == 0 {
+		if column.Generated {
 			continue
 		}
 		s += " " + column.Name
@@ -409,8 +411,8 @@ func (table Table) CreateStatement() string {
 	}
 	s += ") VALUES ("
 	index := 1
-	for i, _ := range table.Columns {
-		if i == 0 {
+	for i, column := range table.Columns {
+		if column.Generated {
 			continue
 		}
 		s += "$"
@@ -432,7 +434,7 @@ func (table Table) CreateQuery() string {
 	var s string
 	s += "("
 	for i, column := range table.Columns {
-		if i == 0 {
+		if column.Generated {
 			continue
 		}
 		s += " " + table.SingName() + "." + camelize(column.Name)
@@ -469,7 +471,7 @@ func (table Table) RetrieveAllStatement() string {
 		}
 		break
 	}
-	s += " DESC\")"
+	s += " ASC\")"
 	return s
 }
 
@@ -586,6 +588,7 @@ var dataMap = map[string]testFuncs{
 	"JSON":        {jsonTestData, "jsonCompare"}, //use jsonCompare since keys can be any order
 	"JSONB":       {jsonbTestData, "jsonCompare"},
 	"UUID":        {uuidTestData, "defaultCompare"},
+	"BYTEA":       {byteaTestData, "byteaCompare"},
 }
 
 func (table Table) CompareMapFields() string {
@@ -789,6 +792,32 @@ func uuidTestData(dataid int, columnid int, column Column) string {
 	s += "\"" + randUUID() + "\""
 	s += nullSuffix(column)
 	return s
+}
+
+func byteaTestData(dataid int, columnid int, column Column) string {
+	s := ""
+	if columnid == 0 || column.Ref {
+		s += "[]byte{0,0,0,0,"
+		s += strconv.FormatInt(int64(dataid), 10)
+		s += "}"
+	} else {
+		s += randBytea(20)
+	}
+	return s
+}
+
+// []byte{0,0,0,1}
+func randBytea(length int) string {
+	str := "[]byte{"
+
+	for i := 0; i < length; i++ {
+		str += strconv.FormatInt(int64(rand.Intn(256)), 10)
+		if i < length-1 {
+			str += ","
+		}
+	}
+	str += "}"
+	return str
 }
 
 func randString(length int) string {

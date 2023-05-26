@@ -66,6 +66,8 @@ func initTokens() {
 		"UUID",
 		"NULL",
 		"PRIMARY",
+		"BYTEA",
+		"GENERATED",
 	}
 	Literals = []string{
 		"(",

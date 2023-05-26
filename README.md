@@ -1,4 +1,8 @@
-# metaapi (v3.0)
+# metaapi (v4.0)
+
+New for v4:
+* Support BYTEA
+* Support GENERATED
 
 Generate go CRUD and HTTP api and test functions from sql table definitions
 
@@ -9,8 +13,8 @@ New for v3:
 * Support for Go/PostgreSQL NULL fields/data
 * Simple Vuetify table view page for data
 
-The current version, v3.0 matches Medium article:
-* Automatic Applications in Go (in progress)
+v3.0 matches Medium article:
+* Automatic Applications in Go
 
 ## Previous versions:
 

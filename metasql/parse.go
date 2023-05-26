@@ -66,7 +66,8 @@ func column_name(sm *StateMachine, token *lex.Token) {
 		table.Columns = append(table.Columns, Column{})
 		table.Columns[len(table.Columns)-1].Name = string(token.Lexeme)
 		table.Columns[len(table.Columns)-1].Not = false
-		table.Columns[len(table.Columns)-1].Null = true //default
+		table.Columns[len(table.Columns)-1].Null = true       //default
+		table.Columns[len(table.Columns)-1].Generated = false //default
 	}
 }
 
@@ -83,6 +84,11 @@ func some_ref(sm *StateMachine, token *lex.Token) {
 func col_not(sm *StateMachine, token *lex.Token) {
 	column := getColumn(sm)
 	column.Not = true
+}
+
+func col_generated(sm *StateMachine, token *lex.Token) {
+	column := getColumn(sm)
+	column.Generated = true
 }
 
 func col_null(sm *StateMachine, token *lex.Token) {
@@ -163,12 +169,14 @@ func ProcessState(sm *StateMachine, token *lex.Token) (err error) {
 		"8,JSON":        {9, data_type},
 		"8,JSONB":       {9, data_type},
 		"8,UUID":        {9, data_type},
+		"8,BYTEA":       {9, data_type},
 		"9,,":           {7, nop},
 		"9,)":           {11, nop},
 		"9,REFID":       {9, some_ref},
 		"9,NOT":         {9, col_not},
 		"9,NULL":        {9, col_null},
 		"9,PRIMARY":     {9, col_primary},
+		"9,GENERATED":   {9, col_generated},
 		"9,ID":          {9, some_stuff},
 		"11,;":          {1, end_table},
 		"11,ID":         {11, some_stuff},

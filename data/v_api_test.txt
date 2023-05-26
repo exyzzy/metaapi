@@ -117,8 +117,9 @@ func TestRetrieveAll<< $table.CapPlurName >>(t *testing.T) {
 	} else {
 		fmt.Println("  Done: RetrieveAll<< $table.CapPlurName >>")
 	}
-	//reverse because api is DESC, [:] is slice of all array elements
-	expect := Reverse<< $table.CapPlurName >>(Test<< $table.CapSingName >>[:])
+	//reverse if api is DESC, [:] is slice of all array elements
+	//expect := Reverse<< $table.CapPlurName >>(Test<< $table.CapSingName >>[:])
+	expect := Test<< $table.CapSingName >>
 	for i, _ := range expect {
 		err = EqualField(result[i], expect[i], Compare<< $table.CapPlurName >>)
 		if err != nil {

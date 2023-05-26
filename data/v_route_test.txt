@@ -12,11 +12,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"strconv"
 	"strings"
 	"testing"
 
-	"github.com/gorilla/mux"
 	"<< .DataPath >>"
 )
 
@@ -131,12 +129,12 @@ func Test<< $table.CapSingName >>PostHandler(t *testing.T) {
 
 func Test<< $table.CapSingName >>GetHandler(t *testing.T) {
 	fmt.Println("==Test<< $table.CapSingName >>GetHander")
-	req, err := http.NewRequest("GET", "/api/<< $table.SingName >>/", nil)
+	js, err := json.Marshal(data.Test<< $table.CapSingName >>[0])
+	reader := strings.NewReader(string(js))
+	req, err := http.NewRequest("GET", "/api/<< $table.SingName >>", reader)
 	if err != nil {
 		t.Fatal(err)
 	}
-	//note id is not parsed, must use mux.SetURLVars()
-	req = mux.SetURLVars(req, map[string]string{"id": strconv.Itoa(int(data.Test<< $table.CapSingName >>[0].Id))})
 	rr := httptest.NewRecorder()
 	handler := http.HandlerFunc(<< $table.CapSingName >>GetHandler)
 	handler.ServeHTTP(rr, req)
@@ -199,8 +197,9 @@ func Test<< $table.CapPlurName >>GetHandler(t *testing.T) {
 	if err != nil {
 		t.Errorf("cannot Unmarshall body: " + err.Error())
 	}
-	//reverse because api is DESC, [:] is slice of all array elements
-	expect := data.Reverse<< $table.CapPlurName >>(data.Test<< $table.CapSingName >>[:])
+	//reverse if api is DESC, [:] is slice of all array elements
+	//expect := data.Reverse<< $table.CapPlurName >>(data.Test<< $table.CapSingName >>[:])
+	expect := data.Test<< $table.CapSingName >>
 	for i, _ := range expect {
 		err = data.EqualField(response[i], expect[i], data.Compare<< $table.CapPlurName >>)
 		if err != nil {
@@ -210,15 +209,13 @@ func Test<< $table.CapPlurName >>GetHandler(t *testing.T) {
 }
 
 func Test<< $table.CapSingName >>PutHandler(t *testing.T) {
-	fmt.Println("==TestToDoPutHander")
+	fmt.Println("==Test<< $table.CapPlurName >>PutHander")
 	js, err := json.Marshal(data.Update<< $table.CapSingName >>)
 	reader := strings.NewReader(string(js))
 	req, err := http.NewRequest("PUT", "/api/<< $table.SingName >>", reader)
 	if err != nil {
 		t.Fatal(err)
 	}
-	//note id is not parsed, must use mux.SetURLVars()
-	req = mux.SetURLVars(req, map[string]string{"id": strconv.Itoa(int(data.Update<< $table.CapSingName >>.Id))})
 	rr := httptest.NewRecorder()
 	handler := http.HandlerFunc(<< $table.CapSingName >>PutHandler)
 	handler.ServeHTTP(rr, req)
@@ -249,13 +246,13 @@ func Test<< $table.CapSingName >>PutHandler(t *testing.T) {
 
 func Test<< $table.CapSingName >>DeleteHandler(t *testing.T) {
 	fmt.Println("==Test<< $table.CapSingName >>DeleteHander")
-	fmt.Println("  Deleting: ", data.Test<< $table.CapSingName >>[0].Id)
-	req, err := http.NewRequest("DELETE", "/api/<< $table.SingName >>", nil)
+
+    js, err := json.Marshal(data.Test<< $table.CapSingName >>[0])
+	reader := strings.NewReader(string(js))
+	req, err := http.NewRequest("DELETE", "/api/<< $table.SingName >>", reader)
 	if err != nil {
 		t.Fatal(err)
 	}
-	//note id is not parsed, must use mux.SetURLVars()
-	req = mux.SetURLVars(req, map[string]string{"id": strconv.Itoa(int(data.Test<< $table.CapSingName >>[0].Id))})
 	rr := httptest.NewRecorder()
 	handler := http.HandlerFunc(<< $table.CapSingName >>DeleteHandler)
 	handler.ServeHTTP(rr, req)
@@ -266,11 +263,12 @@ func Test<< $table.CapSingName >>DeleteHandler(t *testing.T) {
 		fmt.Println("  OK: DELETE on /api/<< $table.SingName >>")
 	}
 	//ensure it's gone
-	req, err = http.NewRequest("GET", "/api/<< $table.SingName >>/", nil)
+    js, err = json.Marshal(data.Test<< $table.CapSingName >>[0])
+	reader = strings.NewReader(string(js))
+	req, err = http.NewRequest("GET", "/api/<< $table.SingName >>", reader)
 	if err != nil {
 		t.Fatal(err)
 	}
-	req = mux.SetURLVars(req, map[string]string{"id": strconv.Itoa(int(data.Test<< $table.CapSingName >>[0].Id))})
 	rr = httptest.NewRecorder()
 	handler = http.HandlerFunc(<< $table.CapSingName >>GetHandler)
 	handler.ServeHTTP(rr, req)
